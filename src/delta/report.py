@@ -9,6 +9,41 @@ from src.canonical.model import CanonicalDocument, ChangeKind
 from src.delta.engine import DeltaEntry
 
 
+def _is_noop_modified(entry: DeltaEntry) -> bool:
+    return (
+        entry.kind == ChangeKind.MODIFIED
+        and entry.old is not None
+        and entry.new is not None
+        and entry.old.raw_text.strip() == entry.new.raw_text.strip()
+    )
+
+
+def _filter_report_entries(entries: list[DeltaEntry]) -> list[DeltaEntry]:
+    return [entry for entry in entries if not _is_noop_modified(entry)]
+
+
+def format_delta_entry(change: DeltaEntry) -> str | None:
+    """Format one delta entry for compact human-readable report text."""
+    if _is_noop_modified(change):
+        return None
+
+    if change.kind == ChangeKind.MODIFIED and change.old is not None and change.new is not None:
+        element = change.new or change.old
+        label = element.human_readable_label()
+        return (
+            f"- [{change.kind.value.upper()}] {label}: "
+            f"Changed from '{change.old.raw_text}' to '{change.new.raw_text}'"
+        )
+
+    if change.kind == ChangeKind.ADDED and change.new is not None:
+        return f"- [ADDED] {change.new.human_readable_label()}: '{change.new.raw_text}'"
+
+    if change.kind == ChangeKind.REMOVED and change.old is not None:
+        return f"- [REMOVED] {change.old.human_readable_label()}: '{change.old.raw_text}'"
+
+    return None
+
+
 def _group_entries(entries: list[DeltaEntry]) -> dict[ChangeKind, list[DeltaEntry]]:
     """Group entries by change kind."""
     groups: dict[ChangeKind, list[DeltaEntry]] = {
@@ -51,6 +86,7 @@ def render_markdown(
     new_doc: CanonicalDocument,
 ) -> str:
     """Render full delta report as Markdown, grouped by change type."""
+    entries = _filter_report_entries(entries)
     parts: list[str] = []
 
     parts.append("# PID Delta Report\n")
@@ -90,6 +126,7 @@ def render_html(
     new_doc: CanonicalDocument,
 ) -> str:
     """Render delta report as HTML with color-coded sections."""
+    entries = _filter_report_entries(entries)
     groups = _group_entries(entries)
 
     css = """
@@ -167,6 +204,7 @@ def render_json(
     new_doc: CanonicalDocument,
 ) -> str:
     """Render delta report as JSON."""
+    entries = _filter_report_entries(entries)
     data = {
         "old_source": old_doc.source_path,
         "new_source": new_doc.source_path,

@@ -37,12 +37,27 @@ class ChangeKind(str, enum.Enum):
 # ---------------------------------------------------------------------------
 
 class BBox(BaseModel):
-    """Axis-aligned bounding box on a page (all values in points, 72 dpi)."""
+    """Axis-aligned bounding box on a page (all values normalized or in points)."""
     x0: float
     y0: float
     x1: float
     y1: float
-    page: int
+    page: int = 1
+
+    def calculate_grid_cell(self, page_width: float = 842.0, page_height: float = 595.0) -> str:
+        """Calculate drawing grid reference (A-H vertically, 1-12 horizontally)."""
+        # Standard A0/A1 P&ID grid layout calculation
+        cx = (self.x0 + self.x1) / 2.0
+        cy = (self.y0 + self.y1) / 2.0
+
+        # Horizontal grid (1 to 12)
+        col = max(1, min(12, int((cx / page_width) * 12) + 1))
+        
+        # Vertical grid (A to H)
+        row_idx = max(0, min(7, int((cy / page_height) * 8)))
+        row = chr(ord('A') + row_idx)
+
+        return f"Grid {row}-{col}"
 
 
 class Element(BaseModel):
@@ -51,15 +66,16 @@ class Element(BaseModel):
     type: ElementType
     raw_text: str
     bbox: BBox | None = None
-    page: int = 0
+    page: int = 1
     confidence: float = 1.0  # 0-1, useful for OCR / heuristic parses
 
     # Structured fields populated by type-specific extractors
-    tag_number: str | None = None  # e.g. "PI-101-01"
-    line_spec: str | None = None   # e.g. "4"-XX-NN-NNNN"
-    note_number: int | None = None
+    tag_number: str | None = None   # e.g. "26-KA-901"
+    line_spec: str | None = None    # e.g. '2"-WC-40-9014-AC21-00'
+    note_number: int | None = None  # e.g. 11
+    grid_cell: str | None = None    # e.g. "Grid E-5"
     setpoint_value: float | None = None  # e.g. 100.0
-    setpoint_unit: str | None = None     # e.g. "PSI", "°F"
+    setpoint_unit: str | None = None     # e.g. "PSI", "bar"
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def stable_key(self) -> str | None:
@@ -71,6 +87,21 @@ class Element(BaseModel):
         if self.note_number is not None:
             return f"note:{self.note_number}"
         return None
+
+    def human_readable_label(self) -> str:
+        """Convert this element into a clear human-readable string for Delta Reports & Chat."""
+        location = f" ({self.grid_cell})" if self.grid_cell else f" (Page {self.page})"
+        
+        if self.type == ElementType.TAG or self.tag_number:
+            return f"Equipment Tag '{self.tag_number or self.raw_text}'{location}"
+        elif self.type == ElementType.LINE_SPEC or self.line_spec:
+            return f"Line Spec '{self.line_spec or self.raw_text}'{location}"
+        elif self.type == ElementType.NOTE or self.note_number is not None:
+            return f"Note #{self.note_number}{location}: \"{self.raw_text}\""
+        elif self.type == ElementType.TABLE_CELL:
+            return f"Table Value '{self.raw_text}'{location}"
+        else:
+            return f"Text '{self.raw_text}'{location}"
 
 
 class TitleBlock(BaseModel):
@@ -90,7 +121,7 @@ class CanonicalDocument(BaseModel):
     """Format-agnostic representation of one PID revision."""
     source_path: str
     format_adapter: str  # e.g. "pdf_native", "pdf_scanned", "dwg"
-    page_count: int = 0
+    page_count: int = 1
     title_block: TitleBlock = Field(default_factory=TitleBlock)
     elements: list[Element] = Field(default_factory=list)
 

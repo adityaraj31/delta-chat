@@ -107,10 +107,12 @@ def _classify_pair(old: Element, new: Element) -> DeltaEntry | None:
     """
     reasons: list[str] = []
 
+    # Defensive no-op check: ignore whitespace-only differences.
+    if old.raw_text.strip() == new.raw_text.strip():
+        return None
+
     # Check structured fields first
     if old.tag_number and new.tag_number and old.tag_number == new.tag_number:
-        if old.raw_text == new.raw_text:
-            return None  # no-op
         reasons.append("tag_value_changed")
         sim = _text_similarity(old.raw_text, new.raw_text)
         desc = _describe_change(old, new, reasons)
@@ -118,8 +120,6 @@ def _classify_pair(old: Element, new: Element) -> DeltaEntry | None:
                           confidence=0.95, description=desc, reasons=reasons)
 
     if old.line_spec and new.line_spec and old.line_spec == new.line_spec:
-        if old.raw_text == new.raw_text:
-            return None  # no-op
         reasons.append("line_spec_value_changed")
         sim = _text_similarity(old.raw_text, new.raw_text)
         desc = _describe_change(old, new, reasons)
@@ -127,8 +127,6 @@ def _classify_pair(old: Element, new: Element) -> DeltaEntry | None:
                           confidence=0.95, description=desc, reasons=reasons)
 
     if old.note_number is not None and new.note_number is not None and old.note_number == new.note_number:
-        if old.raw_text == new.raw_text:
-            return None  # no-op
         reasons.append("note_text_changed")
         sim = _text_similarity(old.raw_text, new.raw_text)
         desc = _describe_change(old, new, reasons)
