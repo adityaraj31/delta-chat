@@ -44,6 +44,71 @@ make eval OLD=data/samples/old.pdf NEW=data/samples/new.pdf GT=eval/datasets/gro
 make sample-image-eval
 ```
 
+## System Architecture
+
+The application pipeline is built around a decoupled, three-phase architecture that isolates ingestion, delta computation, and retrieval-augmented generation (RAG).
+
+```mermaid
+flowchart TD
+    %% Inputs
+    PDF_Old(fa:fa-file-pdf Old P&ID)
+    PDF_New(fa:fa-file-pdf New P&ID)
+    
+    subgraph Phase 1: Format-Agnostic Ingestion
+        Adapter{Auto Adapter}
+        Native[Native PDF Parser]
+        OCR[OCR Image Parser]
+        DWG[DWG CAD Stub]
+        
+        Adapter --> Native
+        Adapter --> OCR
+        Adapter --> DWG
+    end
+    
+    subgraph Phase 2: Delta Engine
+        CanonicalOld(Canonical Document)
+        CanonicalNew(Canonical Document)
+        Align(Stable-ID + Fuzzy Alignment)
+        Compute(Change Classification)
+        Report[Delta Report & JSON]
+    end
+    
+    subgraph Phase 3: Grounded Chat QA
+        VectorStore[(In-Memory Vector Index)]
+        LLM((LLM Client))
+        QA(RAG Answer Generator)
+    end
+    
+    %% Flow
+    PDF_Old --> Adapter
+    PDF_New --> Adapter
+    
+    Native --> CanonicalOld & CanonicalNew
+    OCR --> CanonicalOld & CanonicalNew
+    DWG --> CanonicalOld & CanonicalNew
+    
+    CanonicalOld --> Align
+    CanonicalNew --> Align
+    Align --> Compute
+    Compute --> Report
+    
+    %% RAG Indexing
+    CanonicalOld -.->|Embed| VectorStore
+    CanonicalNew -.->|Embed| VectorStore
+    Report -.->|Embed| VectorStore
+    
+    %% RAG QA
+    User((User Question)) --> QA
+    QA <-->|Search context| VectorStore
+    QA <-->|Generate response| LLM
+    QA --> Answer((Validated Answer))
+```
+
+### Pipeline Breakdown
+1. **Ingestion (Adapters):** The system dynamically inspects incoming files and routes them to the correct parser (e.g., PyMuPDF for native vectors, Tesseract for raster images). All parsers yield a normalized `CanonicalDocument`.
+2. **Delta Computation:** The alignment engine maps elements between the old and new canonical documents using exact stable IDs (like `PI-101-01`), falling back to fuzzy string matching. It then classifies the differences into Additions, Deletions, and Modifications.
+3. **Retrieval-Augmented Chat:** The canonical elements and the computed delta report are embedded into an in-memory vector store. When a user asks a question, the system retrieves relevant components and forces the LLM to cite exactly where it found the information (`[PID:source:element_id]` or `[delta:id]`).
+
 ## Key Design Decisions & Trade-offs
 
 - **Format-Agnostic Canonical Model:** Instead of writing distinct comparison logic for PDFs, Images, and CAD files, all adapters map native data into a uniform `CanonicalDocument` schema. This completely decouples the delta engine and RAG systems from the ingestion layer.
@@ -65,8 +130,4 @@ make sample-image-eval
 - **Async Pipeline:** All ingestion/delta code is synchronous.
 - **DWG Implementation:** We built the `dwg.py` stub to prove the adapter seam, but left ODA/ezdxf integration out of scope for this sprint.
 
-## What I'd Do Next (With More Time)
 
-1. **RAG Chunking Refinement:** Our Candid Failure Table revealed that standard element-by-element chunking often orphans multiline notes. Implementing semantic block chunking for text blobs would instantly improve our QA Correctness score.
-2. **Visual Bounding Box RAG:** Pass the extracted component bounding boxes to a Vision-Language Model to let users ask spatial questions (e.g., "Is the new valve located above the pump?").
-3. **Database & Auth:** Migrate in-memory state to Redis/Postgres and lock down the web server with OAuth for production readiness.
