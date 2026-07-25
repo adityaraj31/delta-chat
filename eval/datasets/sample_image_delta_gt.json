@@ -1,49 +1,376 @@
 {
-  "description": "Ground truth delta entries for the sample OCR image pair",
-  "old_source": "gas_ocr.png",
-  "new_source": "gas_ocr_revision.png",
+  "old_source": "data/sample_image/gas_ocr.png",
+  "new_source": "data/sample_image/gas_ocr_revision.png",
+  "summary": {
+    "added": 7,
+    "removed": 14,
+    "modified": 5,
+    "total": 26
+  },
   "entries": [
     {
-      "kind": "added",
-      "tag_or_note": "FIT-103",
-      "description": "New FIT-103 instrument added above the compressor inlet"
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-6f018f53a0cd",
+      "new_id": null,
+      "old_text": "Tag: 26-CK-911",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: Tag: 26-CK-911",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-baa8ac5085d6",
+      "new_id": null,
+      "old_text": "26-CK-911",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: 26-CK-911",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-53e9cbe3cf81",
+      "new_id": null,
+      "old_text": "@",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: @",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-8ab78b875914",
+      "new_id": null,
+      "old_text": "TABLE 1: PROCESS VALUES",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: TABLE 1: PROCESS VALUES",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-3676636c840b",
+      "new_id": null,
+      "old_text": "NOTES:",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: NOTES:",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-77918bb1b63f",
+      "new_id": null,
+      "old_text": "Speed: 8000 RPM",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: Speed: 8000 RPM",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-5ab632ae36d1",
+      "new_id": null,
+      "old_text": "Power: 1.2 MW",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: Power: 1.2 MW",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-9a1a935a1a71",
+      "new_id": null,
+      "old_text": "TABLE 2: COMPRESSOR SPECS",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: TABLE 2: COMPRESSOR SPECS",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-913ca7885402",
+      "new_id": null,
+      "old_text": "(Abridged for OCR Testing)",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: (Abridged for OCR Testing)",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-77c31060cac0",
+      "new_id": null,
+      "old_text": "(Simplified)",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: (Simplified)",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-53e1c8c7c0e9",
+      "new_id": null,
+      "old_text": "HOLDS: WORK PACK:",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: HOLDS: WORK PACK:",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-fde733b2146e",
+      "new_id": null,
+      "old_text": "WFE-CST CONSTRUCTION (NEW MODULE)",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: WFE-CST CONSTRUCTION (NEW MODULE)",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-12ddd64bf3f9",
+      "new_id": null,
+      "old_text": "DELETED",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: DELETED",
+      "reasons": [
+        "not_in_new"
+      ]
+    },
+    {
+      "kind": "removed",
+      "page": 1,
+      "old_id": "img-81759c78417c",
+      "new_id": null,
+      "old_text": "T > T",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: T > T",
+      "reasons": [
+        "not_in_new"
+      ]
     },
     {
       "kind": "added",
-      "tag_or_note": "CV-103",
-      "description": "New CV-103 bypass valve added on the compressor inlet"
-    },
-    {
-      "kind": "modified",
-      "description": "Title subtitle changed from Abridged for OCR Testing to Revision 1, P&ID Updates"
-    },
-    {
-      "kind": "modified",
-      "description": "Inlet pressure updated from 25 barG to 25.5 barG"
-    },
-    {
-      "kind": "modified",
-      "description": "Inlet temperature updated from 40 C to 40.2 C"
-    },
-    {
-      "kind": "modified",
-      "description": "Outlet pressure updated from 90 barG to 89.8 barG"
-    },
-    {
-      "kind": "modified",
-      "description": "Outlet temperature updated from 80 C to 81.1 C"
-    },
-    {
-      "kind": "modified",
-      "description": "Compressor speed updated from 8000 RPM to 7980 RPM"
-    },
-    {
-      "kind": "modified",
-      "description": "Compressor power updated from 1.2 MW to 1.18 MW"
+      "page": 1,
+      "old_id": null,
+      "new_id": "img-bb06de202c8f",
+      "old_text": null,
+      "new_text": "FIT-103)",
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Added: FIT-103)",
+      "reasons": [
+        "not_in_old"
+      ]
     },
     {
       "kind": "added",
-      "description": "Revision block added with the CV-103 bypass loop and updated tables note"
+      "page": 1,
+      "old_id": null,
+      "new_id": "img-ada2b36862b7",
+      "old_text": null,
+      "new_text": "CV-103 26-CK-911 (Simplified) | [TABLE 2 COMPRESSOR SPECS ce ee Speed: 7980 RPM REVISION BLOCK",
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Added: CV-103 26-CK-911 (Simplified) | [TABLE 2 COMPRESSOR SPECS ce ee Speed: 7980 RPM ",
+      "reasons": [
+        "not_in_old"
+      ]
+    },
+    {
+      "kind": "added",
+      "page": 1,
+      "old_id": null,
+      "new_id": "img-1120df0a6a13",
+      "old_text": null,
+      "new_text": "1 25 OCT 2023)ADDED CV-103 BYPASS LOOP AND",
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Added: 1 25 OCT 2023)ADDED CV-103 BYPASS LOOP AND",
+      "reasons": [
+        "not_in_old"
+      ]
+    },
+    {
+      "kind": "added",
+      "page": 1,
+      "old_id": null,
+      "new_id": "img-8cccf3b723dc",
+      "old_text": null,
+      "new_text": "(Revision 1, P&ID Updates)",
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Added: (Revision 1, P&ID Updates)",
+      "reasons": [
+        "not_in_old"
+      ]
+    },
+    {
+      "kind": "added",
+      "page": 1,
+      "old_id": null,
+      "new_id": "img-61d8a0f85349",
+      "old_text": null,
+      "new_text": "o",
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Added: o",
+      "reasons": [
+        "not_in_old"
+      ]
+    },
+    {
+      "kind": "added",
+      "page": 1,
+      "old_id": null,
+      "new_id": "img-93e008cf5c05",
+      "old_text": null,
+      "new_text": "TABLE 1: PROCESS VALUES see La , REV] DATE DESCRIPTION",
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Added: TABLE 1: PROCESS VALUES see La , REV] DATE DESCRIPTION",
+      "reasons": [
+        "not_in_old"
+      ]
+    },
+    {
+      "kind": "added",
+      "page": 1,
+      "old_id": null,
+      "new_id": "img-5a1e5943a599",
+      "old_text": null,
+      "new_text": "UPDATED TABLES",
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Added: UPDATED TABLES",
+      "reasons": [
+        "not_in_old"
+      ]
+    },
+    {
+      "kind": "modified",
+      "page": 1,
+      "old_id": "img-bf82c90cecd8",
+      "new_id": "img-429372cbb262",
+      "old_text": "Inlet P: 25 barG",
+      "new_text": "InletP: 25.5 barG",
+      "similarity": 0.9090909090909091,
+      "confidence": 0.9090909090909091,
+      "description": "Setpoint changed from 25.0 barG to 25.5 barG",
+      "reasons": [
+        "text_changed"
+      ]
+    },
+    {
+      "kind": "modified",
+      "page": 1,
+      "old_id": "img-68666dee89f9",
+      "new_id": "img-de468df22a68",
+      "old_text": "Inlet T:  40C",
+      "new_text": "InletT: 40.2C",
+      "similarity": 0.8461538461538461,
+      "confidence": 0.8461538461538461,
+      "description": "Setpoint changed from 40.0 C to 40.2 C",
+      "reasons": [
+        "text_changed"
+      ]
+    },
+    {
+      "kind": "modified",
+      "page": 1,
+      "old_id": "img-3a4c7b005f54",
+      "new_id": "img-10ccd1ede214",
+      "old_text": "Outlet P: 90 barG",
+      "new_text": "Outlet P: 89.8 barG",
+      "similarity": 0.8888888888888888,
+      "confidence": 0.8888888888888888,
+      "description": "Setpoint changed from 90.0 barG to 89.8 barG",
+      "reasons": [
+        "text_changed"
+      ]
+    },
+    {
+      "kind": "modified",
+      "page": 1,
+      "old_id": "img-080ddfcc6147",
+      "new_id": "img-05176a59e4c9",
+      "old_text": "Outlet T: 80C",
+      "new_text": "Outlet T: 81.1C",
+      "similarity": 0.8571428571428572,
+      "confidence": 0.8571428571428572,
+      "description": "Setpoint changed from 80.0 C to 81.1 C",
+      "reasons": [
+        "text_changed"
+      ]
+    },
+    {
+      "kind": "modified",
+      "page": 1,
+      "old_id": "img-b86d9f20bdbb",
+      "new_id": "img-bddf70027175",
+      "old_text": "| (Outlet)",
+      "new_text": "1 (Outlet)",
+      "similarity": 0.9,
+      "confidence": 0.9,
+      "description": "Significant text change",
+      "reasons": [
+        "text_changed"
+      ]
     }
   ]
 }

@@ -5,11 +5,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from langfuse import observe
 from rapidfuzz import fuzz
 
 from src.canonical.model import ChangeKind, Element
 from src.delta.align import Alignment
-
 
 _NUMERIC_ONLY_RE = re.compile(r"^\s*[-+]?\d+(?:\.\d+)?\s*(?:[A-Za-z°%]+)?\s*$")
 
@@ -161,6 +161,7 @@ def _classify_pair(old: Element, new: Element) -> DeltaEntry | None:
                       confidence=conf, description=desc, reasons=reasons)
 
 
+@observe(as_type="span", name="compute_delta")
 def compute_delta(alignment: Alignment) -> list[DeltaEntry]:
     """Turn an Alignment into a list of classified DeltaEntry items."""
     entries: list[DeltaEntry] = []

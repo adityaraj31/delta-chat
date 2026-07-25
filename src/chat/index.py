@@ -6,6 +6,8 @@ import math
 import re
 from dataclasses import dataclass, field
 
+from langfuse import observe
+
 from src.canonical.model import CanonicalDocument, Element
 from src.delta.engine import DeltaEntry
 
@@ -102,6 +104,7 @@ class RetrievalIndex:
             if entry.id in embeddings:
                 entry.embedding = embeddings[entry.id]
 
+    @observe(as_type="span", name="retrieval.search")
     def search(self, query_embedding: list[float], top_k: int = 10) -> list[tuple[IndexEntry, float]]:
         """Cosine similarity search. Returns (entry, score) pairs."""
         scored: list[tuple[IndexEntry, float]] = []

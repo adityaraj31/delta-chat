@@ -1,61 +1,166 @@
 {
-  "description": "Ground truth delta entries for the Lift Gas compressor P&ID sample pair",
-  "old_source": "Lift Gas compressor-P&ID.pdf",
-  "new_source": "Lift Gas compressor-P&ID_RevB.pdf",
+  "old_source": "data/sample_pdf/Lift Gas compressor-P&ID.pdf",
+  "new_source": "data/sample_pdf/Lift Gas compressor-P&ID_RevB.pdf",
+  "summary": {
+    "added": 1,
+    "removed": 5,
+    "modified": 5,
+    "total": 11
+  },
   "entries": [
     {
       "kind": "removed",
-      "tag_or_note": "CK-911",
-      "description": "Removed: 26-CK-911"
+      "page": 1,
+      "old_id": "el-d6d2360d5382",
+      "new_id": null,
+      "old_text": "3\"-WC-40-9015-AC21-00",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: 3\"-WC-40-9015-AC21-00",
+      "reasons": [
+        "not_in_new"
+      ]
     },
     {
       "kind": "removed",
-      "tag_or_note": "KA-901",
-      "description": "Removed: 26-KA-901"
+      "page": 1,
+      "old_id": "el-c966051baba6",
+      "new_id": null,
+      "old_text": "26-KA-901",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: 26-KA-901",
+      "reasons": [
+        "not_in_new"
+      ]
     },
     {
       "kind": "removed",
-      "tag_or_note": "KA-901",
-      "description": "Removed: 26-KA-901"
+      "page": 1,
+      "old_id": "el-f75309d08c10",
+      "new_id": null,
+      "old_text": "26-KA-901",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: 26-KA-901",
+      "reasons": [
+        "not_in_new"
+      ]
     },
     {
       "kind": "removed",
-      "tag_or_note": "KA-901",
-      "description": "Removed: 26-KA-901-M01"
+      "page": 1,
+      "old_id": "el-6e3160ad45b2",
+      "new_id": null,
+      "old_text": "26-KA-901-M01",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: 26-KA-901-M01",
+      "reasons": [
+        "not_in_new"
+      ]
     },
     {
       "kind": "removed",
-      "tag_or_note": "WC-40",
-      "description": "Removed: 3\"-WC-40-9015-AC21-00"
+      "page": 1,
+      "old_id": "el-badee205454d",
+      "new_id": null,
+      "old_text": "26-CK-911",
+      "new_text": null,
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Removed: 26-CK-911",
+      "reasons": [
+        "not_in_new"
+      ]
     },
     {
       "kind": "added",
-      "description": "Added: -M01"
+      "page": 1,
+      "old_id": null,
+      "new_id": "el-9a8975d13a36",
+      "old_text": null,
+      "new_text": "-M01",
+      "similarity": 1.0,
+      "confidence": 1.0,
+      "description": "Added: -M01",
+      "reasons": [
+        "not_in_old"
+      ]
     },
     {
       "kind": "modified",
-      "tag_or_note": "WC-40",
-      "description": "Label text changed for WC-40"
+      "page": 1,
+      "old_id": "el-abe85eb260a2",
+      "new_id": "el-8303f4127aa4",
+      "old_text": "2\"-WC-40-9014-AC21-00",
+      "new_text": "3\"-WC-40-9012-AC21-00",
+      "similarity": 0.9047619047619048,
+      "confidence": 0.95,
+      "description": "Label text changed for WC-40",
+      "reasons": [
+        "tag_value_changed"
+      ]
     },
     {
       "kind": "modified",
-      "tag_or_note": "WC-40",
-      "description": "Label text changed for WC-40"
+      "page": 1,
+      "old_id": "el-24001b64bc22",
+      "new_id": "el-22c31060e3c5",
+      "old_text": "3\"-WC-40-9012-AC21-00",
+      "new_text": "2\"-WC-40-9013-AC21-00",
+      "similarity": 0.9047619047619048,
+      "confidence": 0.95,
+      "description": "Label text changed for WC-40",
+      "reasons": [
+        "tag_value_changed"
+      ]
     },
     {
       "kind": "modified",
-      "tag_or_note": "WC-40",
-      "description": "Label text changed for WC-40"
+      "page": 1,
+      "old_id": "el-5a6111d34951",
+      "new_id": "el-72c0a9b60ca8",
+      "old_text": "2\"-WC-40-9013-AC21-00",
+      "new_text": "2\"-WC-40-9037-AC21-00",
+      "similarity": 0.9523809523809522,
+      "confidence": 0.95,
+      "description": "Label text changed for WC-40",
+      "reasons": [
+        "tag_value_changed"
+      ]
     },
     {
       "kind": "modified",
-      "tag_or_note": "WC-40",
-      "description": "Label text changed for WC-40"
+      "page": 1,
+      "old_id": "el-2b133e27b02d",
+      "new_id": "el-47e1600e31de",
+      "old_text": "2\"-WC-40-9037-AC21-00",
+      "new_text": "2\"-WC-40-9036-AC21-00",
+      "similarity": 0.9523809523809522,
+      "confidence": 0.95,
+      "description": "Label text changed for WC-40",
+      "reasons": [
+        "tag_value_changed"
+      ]
     },
     {
       "kind": "modified",
-      "tag_or_note": "WC-40",
-      "description": "Label text changed for WC-40"
+      "page": 1,
+      "old_id": "el-fac2996c126c",
+      "new_id": "el-edd5c6447020",
+      "old_text": "2\"-WC-40-9036-AC21-00",
+      "new_text": "3\"-WC-40-9015-AC21-00",
+      "similarity": 0.8571428571428572,
+      "confidence": 0.95,
+      "description": "Label text changed for WC-40",
+      "reasons": [
+        "tag_value_changed"
+      ]
     }
   ]
 }

@@ -6,6 +6,8 @@ import abc
 from pathlib import Path
 from typing import Any
 
+from langfuse import observe
+
 from src.canonical.model import CanonicalDocument
 
 
@@ -43,6 +45,7 @@ class FormatAdapter(abc.ABC):
     def parse(self, raw: bytes, metadata: dict[str, Any]) -> CanonicalDocument:
         """Parse raw bytes into a normalised canonical document."""
 
+    @observe(as_type="span", name="ingest")
     def ingest(self, path: Path) -> CanonicalDocument:
         """High-level entry point: resolve then parse. Override if needed."""
         raw, metadata = self.resolve(path)

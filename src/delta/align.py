@@ -10,11 +10,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from langfuse import observe
 from rapidfuzz import fuzz
 
 from src.canonical.model import CanonicalDocument, Element
 from src.config import DeltaConfig
-
 
 _NUMERIC_ONLY_RE = re.compile(r"^\s*[-+]?\d+(?:\.\d+)?\s*(?:[A-Za-z°%]+)?\s*$")
 
@@ -94,6 +94,7 @@ class Alignment:
     added: list[Element] = field(default_factory=list)
 
 
+@observe(as_type="span", name="align")
 def align_documents(
     old: CanonicalDocument,
     new: CanonicalDocument,

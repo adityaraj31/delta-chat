@@ -5,10 +5,11 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from langfuse import observe
+
 from src.chat.index import CitationValidation, IndexEntry, RetrievalIndex
 from src.chat.llm import LLMClient
 from src.config import ChatConfig
-from src.observability.tracing import get_tracer
 
 # Matches [PID:source:pN:element_id] or [delta:idx]
 _CITATION_RE = re.compile(r"\[(?:PID:[^\]]+|delta:\d+)\]")
@@ -81,6 +82,7 @@ class GroundedQA:
         self._llm = llm
         self._cfg = config or ChatConfig()
 
+    @observe(as_type="span", name="chat.answer")
     def answer(self, question: str, top_k: int | None = None) -> Answer:
         """Answer a question using retrieval + grounded generation.
 
@@ -88,90 +90,66 @@ class GroundedQA:
         re-prompts the LLM once to hedge/drop unsupported claims.
         """
         k = top_k or self._cfg.top_k
-        tracer = get_tracer()
 
-        with tracer.span("chat.answer", input={"question": question, "top_k": k}, as_type="span") as answer_span:
-            # Embed the question
-            q_emb = self._llm.embed_single(question)
+        # Embed the question
+        q_emb = self._llm.embed_single(question)
 
-            # Retrieve
-            with tracer.span("retrieval.search", input={"top_k": k}, as_type="retriever") as retrieval_span:
-                results = self._index.search(q_emb, top_k=k)
-                entries = [entry for entry, _ in results]
-                retrieval_span.update(
-                    output={
-                        "hit_count": len(entries),
-                        "hit_ids": [entry.id for entry in entries],
-                        "scores": [round(score, 4) for _, score in results],
-                    }
-                )
+        # Retrieve
+        results = self._index.search(q_emb, top_k=k)
+        entries = [entry for entry, _ in results]
 
-            # Build context
-            context_parts = []
-            for entry in entries:
-                context_parts.append(entry.text)
-            context = "\n".join(context_parts)
+        # Build context
+        context_parts = []
+        for entry in entries:
+            context_parts.append(entry.text)
+        context = "\n".join(context_parts)
 
-            # Generate
-            user_msg = _ANSWER_TEMPLATE.format(
-                context_header=_CONTEXT_HEADER + context,
-                question=question,
-            )
-            messages = [
+        # Generate
+        user_msg = _ANSWER_TEMPLATE.format(
+            context_header=_CONTEXT_HEADER + context,
+            question=question,
+        )
+        messages = [
+            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "user", "content": user_msg},
+        ]
+        response = self._llm.chat(messages, temperature=0.0)
+
+        # Extract and validate citations
+        citations = _CITATION_RE.findall(response)
+        validations = self._index.validate_citations(citations)
+        rate = _citation_rate(validations)
+
+        # If citations failed validation, re-prompt once
+        if rate < 1.0 and _MAX_CITATION_RETRIES > 0:
+            retry_msg = user_msg + _HEDGE_SUFFIX
+            retry_messages = [
                 {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": user_msg},
+                {"role": "user", "content": retry_msg},
+                {"role": "assistant", "content": response},
+                {"role": "user", "content": (
+                    "Some of your citations could not be verified. "
+                    "Please revise your answer to only include claims "
+                    "supported by valid citations, or hedge where uncertain."
+                )},
             ]
-            response = self._llm.chat(messages, temperature=0.0)
-
-            # Extract and validate citations
+            response = self._llm.chat(retry_messages, temperature=0.0)
             citations = _CITATION_RE.findall(response)
             validations = self._index.validate_citations(citations)
             rate = _citation_rate(validations)
 
-            # If citations failed validation, re-prompt once
-            if rate < 1.0 and _MAX_CITATION_RETRIES > 0:
-                retry_msg = user_msg + _HEDGE_SUFFIX
-                retry_messages = [
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": retry_msg},
-                    {"role": "assistant", "content": response},
-                    {"role": "user", "content": (
-                        "Some of your citations could not be verified. "
-                        "Please revise your answer to only include claims "
-                        "supported by valid citations, or hedge where uncertain."
-                    )},
-                ]
-                response = self._llm.chat(retry_messages, temperature=0.0)
-                citations = _CITATION_RE.findall(response)
-                validations = self._index.validate_citations(citations)
-                rate = _citation_rate(validations)
+        reports = [
+            CitationReport(raw=v.raw, valid=v.valid, reason=v.reason)
+            for v in validations
+        ]
 
-            reports = [
-                CitationReport(raw=v.raw, valid=v.valid, reason=v.reason)
-                for v in validations
-            ]
-
-            answer_span.update(
-                output={
-                    "citation_rate": rate,
-                    "citation_count": len(citations),
-                    "retrieved_count": len(entries),
-                    "retrieved_ids": [entry.id for entry in entries],
-                },
-                metadata={
-                    "retrieval_hit_count": len(entries),
-                    "retrieval_top_k": k,
-                    "citation_rate": rate,
-                },
-            )
-
-            return Answer(
-                text=response,
-                citations=citations,
-                validated_citations=reports,
-                retrieved_entries=entries,
-                citation_rate=rate,
-            )
+        return Answer(
+            text=response,
+            citations=citations,
+            validated_citations=reports,
+            retrieved_entries=entries,
+            citation_rate=rate,
+        )
 
 
 def _citation_rate(validations: list[CitationValidation]) -> float:

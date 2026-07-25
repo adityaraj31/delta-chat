@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 
 from src.canonical.model import BBox, CanonicalDocument, Element, TitleBlock, make_element_id
 from src.config import IngestConfig

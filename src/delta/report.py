@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from langfuse import observe
+
 from src.canonical.model import CanonicalDocument, ChangeKind
 from src.delta.engine import DeltaEntry
 
@@ -233,6 +235,7 @@ def render_json(
     return json.dumps(data, indent=2)
 
 
+@observe(as_type="span", name="render_report")
 def write_report(
     entries: list[DeltaEntry],
     old_doc: CanonicalDocument,
