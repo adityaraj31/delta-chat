@@ -11,15 +11,14 @@ from langfuse import Langfuse
 def _langfuse_configured() -> bool:
     return bool(os.getenv("LANGFUSE_PUBLIC_KEY") and os.getenv("LANGFUSE_SECRET_KEY"))
 
-_lf = None
+from langfuse import get_client
 
 def init_tracer(trace_dir: Path | None = None) -> None:
-    """Initialize Langfuse. (Local fallback traces via output directory can be set via env var)."""
-    global _lf
-    if _langfuse_configured():
-        _lf = Langfuse()
+    """Initialize Langfuse via decorators."""
+    pass
 
 def flush() -> None:
     """Flush Langfuse buffers."""
-    if _lf:
-        _lf.flush()
+    client = get_client()
+    if client:
+        client.flush()

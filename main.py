@@ -46,7 +46,9 @@ def run_pipeline_logic(old_path: Path, new_path: Path, cfg):
 def cmd_pipeline(args: argparse.Namespace) -> None:
     """Run the full ingest → delta pipeline."""
     cfg = load_config()
+    from src.observability.logging import setup_logging, new_correlation_id
     setup_logging(cfg.log_level)
+    cid = new_correlation_id()
     init_tracer(cfg.output_dir / "traces")
 
     old_path = Path(args.old)
@@ -58,7 +60,9 @@ def cmd_pipeline(args: argparse.Namespace) -> None:
         print(f"Error: new document not found: {new_path}", file=sys.stderr)
         sys.exit(1)
 
-    old_doc, new_doc, entries = run_pipeline_logic(old_path, new_path, cfg)
+    from langfuse import propagate_attributes
+    with propagate_attributes(session_id=cid):
+        old_doc, new_doc, entries = run_pipeline_logic(old_path, new_path, cfg)
 
     # Optional: run a demo chat question if LLM is configured
     if cfg.chat.llm_api_key:
@@ -99,7 +103,9 @@ def _run_chat_demo(cfg, old_doc, new_doc, entries, output_dir):
 def cmd_chat(args: argparse.Namespace) -> None:
     """Interactive chat mode over previously generated delta report."""
     cfg = load_config()
+    from src.observability.logging import setup_logging, new_correlation_id
     setup_logging(cfg.log_level)
+    cid = new_correlation_id()
     init_tracer(cfg.output_dir / "traces")
 
     if not cfg.chat.llm_api_key:
@@ -116,38 +122,40 @@ def cmd_chat(args: argparse.Namespace) -> None:
     old_path = Path(args.old)
     new_path = Path(args.new)
 
-    old_doc = auto_adapter(old_path).ingest(old_path)
-    new_doc = auto_adapter(new_path).ingest(new_path)
+    from langfuse import propagate_attributes
+    with propagate_attributes(session_id=cid):
+        old_doc = auto_adapter(old_path).ingest(old_path)
+        new_doc = auto_adapter(new_path).ingest(new_path)
 
-    alignment = align_documents(old_doc, new_doc, config=cfg.delta)
-    entries = compute_delta(alignment)
+        alignment = align_documents(old_doc, new_doc, config=cfg.delta)
+        entries = compute_delta(alignment)
 
-    llm = LLMClient(cfg.chat)
-    index = RetrievalIndex(cfg.chat.embedding_dim)
-    index.add_document(old_doc, "old")
-    index.add_document(new_doc, "new")
-    index.add_delta_entries(entries)
+        llm = LLMClient(cfg.chat)
+        index = RetrievalIndex(cfg.chat.embedding_dim)
+        index.add_document(old_doc, "old")
+        index.add_document(new_doc, "new")
+        index.add_delta_entries(entries)
 
-    texts = [e.text for e in index.entries]
-    if texts:
-        embeddings = llm.embed(texts)
-        emb_map = {e.id: emb for e, emb in zip(index.entries, embeddings)}
-        index.set_embeddings(emb_map)
+        texts = [e.text for e in index.entries]
+        if texts:
+            embeddings = llm.embed(texts)
+            emb_map = {e.id: emb for e, emb in zip(index.entries, embeddings)}
+            index.set_embeddings(emb_map)
 
-    qa = GroundedQA(index, llm, cfg.chat)
+        qa = GroundedQA(index, llm, cfg.chat)
 
-    print("PID Chat (type 'quit' to exit)\n")
-    while True:
-        try:
-            q = input("Q: ").strip()
-        except (EOFError, KeyboardInterrupt):
-            break
-        if q.lower() in ("quit", "exit", "q"):
-            break
-        if not q:
-            continue
-        answer = qa.answer(q)
-        print(f"A: {answer.text}\n")
+        print("PID Chat (type 'quit' to exit)\n")
+        while True:
+            try:
+                q = input("Q: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                break
+            if q.lower() in ("quit", "exit", "q"):
+                break
+            if not q:
+                continue
+            answer = qa.answer(q)
+            print(f"A: {answer.text}\n")
 
     flush()
 

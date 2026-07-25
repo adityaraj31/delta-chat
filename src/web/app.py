@@ -51,7 +51,11 @@ async def correlation_id_middleware(request: Request, call_next: Any) -> Any:
     cid = request.headers.get("X-Request-ID") or new_correlation_id()
     bind_correlation_id(cid)
     start = time.monotonic()
-    response = await call_next(request)
+    
+    from langfuse import propagate_attributes
+    with propagate_attributes(session_id=cid):
+        response = await call_next(request)
+        
     elapsed_ms = round((time.monotonic() - start) * 1000, 1)
     log.info(
         "http.request",

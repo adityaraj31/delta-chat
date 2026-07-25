@@ -50,7 +50,7 @@ def run_eval_pipeline(args, cfg, old_path, new_path):
         gt_qa = load_ground_truth(Path(args.gt_answers))
         for item in gt_qa["questions"]:
             ans = qa.answer(item["question"])
-            answer_metrics.append(score_answer(ans.text, item["answer"], item.get("citations")))
+            answer_metrics.append(score_answer(item["question"], ans.text, item["answer"], llm, item.get("citations")))
 
     run_eval(delta_metrics, answer_metrics)
 
@@ -63,11 +63,16 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config()
+    from src.observability.logging import setup_logging, new_correlation_id
+    setup_logging(cfg.log_level)
+    cid = new_correlation_id()
     init_tracer(cfg.output_dir / "traces")
     old_path = Path(args.old)
     new_path = Path(args.new)
 
-    run_eval_pipeline(args, cfg, old_path, new_path)
+    from langfuse import propagate_attributes
+    with propagate_attributes(session_id=cid):
+        run_eval_pipeline(args, cfg, old_path, new_path)
 
     flush()
 

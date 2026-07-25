@@ -17,7 +17,7 @@ def load_ground_truth(path: Path) -> dict[str, Any]:
 def score_delta(
     predicted: list[DeltaEntry],
     ground_truth: list[dict[str, Any]],
-) -> dict[str, float]:
+) -> dict[str, Any]:
     """Compute precision / recall / F1 for delta classification.
 
     Ground truth entries are dicts with:
@@ -30,6 +30,9 @@ def score_delta(
     fn = 0
 
     gt_matched: set[int] = set()
+    
+    fp_items = []
+    fn_items = []
 
     for pred in predicted:
         found = False
@@ -58,24 +61,42 @@ def score_delta(
             tp += 1
         else:
             fp += 1
+            desc = pred.description
+            if pred.old and pred.old.tag_number: desc = f"({pred.old.tag_number}) " + desc
+            elif pred.new and pred.new.tag_number: desc = f"({pred.new.tag_number}) " + desc
+            fp_items.append({"kind": pred.kind.value, "desc": desc})
 
-    fn = len(ground_truth) - len(gt_matched)
+    for i, gt in enumerate(ground_truth):
+        if i not in gt_matched:
+            fn += 1
+            fn_items.append(gt)
 
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
 
-    return {"precision": precision, "recall": recall, "f1": f1, "tp": tp, "fp": fp, "fn": fn}
+    return {
+        "precision": precision, 
+        "recall": recall, 
+        "f1": f1, 
+        "tp": tp, 
+        "fp": fp, 
+        "fn": fn,
+        "fp_items": fp_items,
+        "fn_items": fn_items
+    }
 
 
 def score_answer(
+    question: str,
     answer_text: str,
     ground_truth_answer: str,
+    llm: Any = None,
     required_citations: list[str] | None = None,
 ) -> dict[str, Any]:
     """Score a chat answer against ground truth.
-
-    Returns a dict with exact_match, citation presence, and a simple overlap score.
+    
+    Uses exact_match as a baseline, and LLM-as-a-judge if provided.
     """
     import re
     citations_found = re.findall(r"\[(?:PID:[^\]]+|delta:\d+)\]", answer_text)
@@ -86,34 +107,107 @@ def score_answer(
             if not any(req in c for c in citations_found):
                 required_cite_present = False
                 break
-
-    return {
+                
+    result = {
+        "question": question,
+        "generated": answer_text,
+        "ground_truth": ground_truth_answer,
         "exact_match": answer_text.strip().lower() == ground_truth_answer.strip().lower(),
         "has_citations": has_citations,
         "citation_count": len(citations_found),
         "required_citations_present": required_cite_present,
     }
+    
+    if llm:
+        prompt = f"""You are an expert AI judge. Evaluate the generated answer against the ground truth answer for the following question.
+Question: {question}
+Ground Truth: {ground_truth_answer}
+Generated Answer: {answer_text}
+
+Score the generated answer on two criteria:
+1. Correctness: Does it convey the same core information as the ground truth? (1 for yes, 0 for no)
+2. Groundedness: Does it avoid hallucinating information not present in the ground truth or the likely source document? (1 for yes, 0 for no)
+
+Output ONLY a JSON object with keys "correctness" and "groundedness", and integer values 0 or 1.
+"""
+        try:
+            resp = llm.chat([
+                {"role": "system", "content": "You are a strict, objective evaluation system. Output valid JSON only."},
+                {"role": "user", "content": prompt}
+            ], temperature=0.0)
+            match = re.search(r'\{.*\}', resp, re.DOTALL)
+            if match:
+                parsed = json.loads(match.group(0))
+                result["llm_correctness"] = float(parsed.get("correctness", 0))
+                result["llm_groundedness"] = float(parsed.get("groundedness", 0))
+        except Exception:
+            pass
+
+    return result
 
 
 def run_eval(
-    delta_metrics: dict[str, float],
+    delta_metrics: dict[str, Any],
     answer_metrics: list[dict[str, Any]],
 ) -> None:
-    """Print a summary scorecard."""
-    print("\n=== Eval Scorecard ===\n")
-    print("Delta Metrics:")
-    for k, v in delta_metrics.items():
-        print(f"  {k}: {v:.3f}" if isinstance(v, float) else f"  {k}: {v}")
+    """Print a summary scorecard and a candid failure table."""
+    print("\n" + "="*50)
+    print("=== Eval Scorecard ===")
+    print("="*50 + "\n")
+    
+    print("--- DELTA METRICS ---")
+    print(f"  Precision: {delta_metrics['precision']:.3f}  (TP: {delta_metrics['tp']}, FP: {delta_metrics['fp']})")
+    print(f"  Recall:    {delta_metrics['recall']:.3f}  (TP: {delta_metrics['tp']}, FN: {delta_metrics['fn']})")
+    print(f"  F1 Score:  {delta_metrics['f1']:.3f}")
+    
+    if delta_metrics['fp'] > 0 or delta_metrics['fn'] > 0:
+        print("\n  CANDID FAILURE TABLE (Deltas):")
+        if delta_metrics['fp'] > 0:
+            print("  - False Positives (Invented or Mismatched):")
+            for item in delta_metrics['fp_items']:
+                print(f"      [{item['kind']}] {item.get('desc', '')}")
+        if delta_metrics['fn'] > 0:
+            print("  - False Negatives (Missed True Changes):")
+            for item in delta_metrics['fn_items']:
+                tag = item.get("tag_or_note", "Unknown")
+                print(f"      [{item.get('kind')}] {tag}")
 
     if answer_metrics:
-        print("\nAnswer Metrics (averaged):")
+        print("\n--- CHAT METRICS (Averaged) ---")
         avg: dict[str, float] = {}
         for m in answer_metrics:
             for k, v in m.items():
-                if isinstance(v, (bool, int, float)):
+                if isinstance(v, (bool, int, float)) and not isinstance(v, str):
                     avg.setdefault(k, 0.0)
                     avg[k] += float(v)
         n = len(answer_metrics)
         for k, v in avg.items():
             print(f"  {k}: {v / n:.3f}")
-    print()
+            
+        # Failures
+        chat_failures = []
+        for m in answer_metrics:
+            # If LLM judge scored 0 on correctness, or exact match is false when no LLM judge
+            failed = False
+            if "llm_correctness" in m:
+                if m["llm_correctness"] < 1.0: failed = True
+            elif not m.get("exact_match"):
+                failed = True
+                
+            if not m.get("required_citations_present"):
+                failed = True
+                
+            if failed:
+                chat_failures.append(m)
+                
+        if chat_failures:
+            print("\n  CANDID FAILURE TABLE (Chat):")
+            for f in chat_failures:
+                print(f"  - Q: {f['question']}")
+                print(f"    Expected: {f['ground_truth']}")
+                print(f"    Got:      {f['generated']}")
+                if 'llm_correctness' in f:
+                    print(f"    Scores -> Correctness: {f.get('llm_correctness')}, Groundedness: {f.get('llm_groundedness')}, Required Cites: {f.get('required_citations_present')}")
+                print()
+
+    print("="*50 + "\n")
