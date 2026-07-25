@@ -54,7 +54,8 @@ make sample-image-eval
 ## Observability & Evaluation Approach
 
 - **Unified Correlation:** We use `structlog` for structured, JSON-formatted console logging, injecting a unique `correlation_id` (or `X-Request-ID`) at the boundary of every Web request, CLI execution, or Evaluation run.
-- **Deep Tracing with Langfuse:** We integrated Langfuse's OpenTelemetry SDK (`@observe`) to capture hierarchical execution spans, stage timings, and automatic LLM token/cost tracking. Using `propagate_attributes`, we dynamically tie the Langfuse `session_id` directly to our application's `correlation_id`, ensuring 1:1 parity between logs and traces.
+- **Why Langfuse?:** We explicitly chose Langfuse over alternatives (like LangSmith or Phoenix) because of its OpenTelemetry-native architecture and excellent self-hosting posture. It avoids vendor lock-in and provides an extremely clean `@observe` decorator pattern that seamlessly integrates with our custom `structlog` correlation IDs without demanding a massive framework rewrite.
+- **Deep Tracing with Langfuse:** We integrated Langfuse's OpenTelemetry SDK to capture hierarchical execution spans, stage timings, and automatic LLM token/cost tracking. Using `propagate_attributes`, we dynamically tie the Langfuse `session_id` directly to our application's `correlation_id`, ensuring 1:1 parity between logs and traces.
 - **Automated Harness (LLM-as-a-judge):** Our evaluation suite scores Delta accuracy (Precision, Recall, F1) against JSON ground truth. We implemented an LLM-as-a-judge to evaluate Chat responses on two axes: **Correctness** (does it match ground truth?) and **Groundedness** (are citations valid?). It produces a **Candid Failure Table** summarizing exactly where the system falls short, ensuring regressions are caught instantly.
 
 ## What We Deliberately Cut
