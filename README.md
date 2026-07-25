@@ -41,106 +41,31 @@ make chat OLD=data/samples/old.pdf NEW=data/samples/new.pdf
 make eval OLD=data/samples/old.pdf NEW=data/samples/new.pdf GT=eval/datasets/ground_truth.json
 
 # Sample OCR image eval
-uv run python eval/run_eval.py \
-  --old data/sample_image/gas_ocr.png \
-  --new data/sample_image/gas_ocr_revision.png \
-  --gt-delta eval/datasets/sample_image_delta_gt.json \
-  --gt-answers eval/datasets/sample_image_qa_gt.json
+make sample-image-eval
 ```
 
-## Configuration
+## Key Design Decisions & Trade-offs
 
-All settings are driven by environment variables (or a `.env` file). See `.env.example` for the full list.
+- **Format-Agnostic Canonical Model:** Instead of writing distinct comparison logic for PDFs, Images, and CAD files, all adapters map native data into a uniform `CanonicalDocument` schema. This completely decouples the delta engine and RAG systems from the ingestion layer.
+- **Native OpenAI over LangChain:** We deliberately chose to write a native RAG implementation (`RetrievalIndex`, `LLMClient`) using the standard OpenAI SDK rather than importing LangChain. LangChain introduces massive, opaque abstractions that hinder debugging and tight iteration. By owning every line of our QA logic, we retain strict deterministic control over our citation enforcement and trace boundaries.
+- **Stable-ID Alignment First:** Elements with tag numbers or line specs match by exact ID. Unmatched elements fall back to fuzzy text similarity (`rapidfuzz`). This hybrid approach maximizes both precision and recall.
+- **Strict Citation Enforcement:** Chat answers must cite `[PID:source:page:element_id]` or `[delta:entry_index]`. The system prompt is engineered to refuse ungrounded answers.
 
-Langfuse traces are created when `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are set. Local run summaries are written to `output/traces/`.
+## Observability & Evaluation Approach
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `PID_LLM_API_KEY` | (empty) | **Required for chat.** OpenAI-compatible API key |
-| `PID_LLM_MODEL` | `gpt-4o-mini` | Model for chat + embeddings |
-| `PID_FUZZY_THRESHOLD` | `70` | Alignment sensitivity (0–100) |
-| `PID_WEB_PORT` | `7860` | Web UI port |
-| `PID_PDF_DPI` | `300` | PDF rendering resolution |
+- **Unified Correlation:** We use `structlog` for structured, JSON-formatted console logging, injecting a unique `correlation_id` (or `X-Request-ID`) at the boundary of every Web request, CLI execution, or Evaluation run.
+- **Deep Tracing with Langfuse:** We integrated Langfuse's OpenTelemetry SDK (`@observe`) to capture hierarchical execution spans, stage timings, and automatic LLM token/cost tracking. Using `propagate_attributes`, we dynamically tie the Langfuse `session_id` directly to our application's `correlation_id`, ensuring 1:1 parity between logs and traces.
+- **Automated Harness (LLM-as-a-judge):** Our evaluation suite scores Delta accuracy (Precision, Recall, F1) against JSON ground truth. We implemented an LLM-as-a-judge to evaluate Chat responses on two axes: **Correctness** (does it match ground truth?) and **Groundedness** (are citations valid?). It produces a **Candid Failure Table** summarizing exactly where the system falls short, ensuring regressions are caught instantly.
 
-## Architecture
+## What We Deliberately Cut
 
-```
-PDF A ──┐
-        ├── ingest ── canonical ── align ── delta engine ── report
-PDF B ──┘                                                    │
-                                                     ┌──────┘
-                                                     │  retrieval index
-                                                     │  + embeddings
-                                                     ▼
-                                              grounded Q&A (RAG)
-```
+- **Persistence:** No database. Session state is stored in-memory per session.
+- **Real vector DB:** Uses in-memory cosine similarity instead of Chroma/Pinecone.
+- **Async Pipeline:** All ingestion/delta code is synchronous.
+- **DWG Implementation:** We built the `dwg.py` stub to prove the adapter seam, but left ODA/ezdxf integration out of scope for this sprint.
 
-**Key design decisions:**
+## What I'd Do Next (With More Time)
 
-- **Canonical model as the seam:** All format adapters (native PDF, scanned OCR, DWG stub) normalise into the same `CanonicalDocument` / `Element` schema. Delta engine and chat are format-agnostic.
-- **Stable-ID alignment first:** Elements with tag numbers (`PI-101-01`), line specs, or note numbers match by ID. Unmatched elements fall back to fuzzy text similarity (rapidfuzz).
-- **Citation enforcement:** Chat answers must cite `[PID:source:page:element_id]` or `[delta:entry_index]`. The system prompt refuses to answer ungrounded questions.
-- **Deterministic delta:** Alignment and classification are deterministic given the same inputs. LLM non-determinism is isolated to the chat layer (temperature=0 by default).
-
-## Project Structure
-
-```
-src/
-  canonical/model.py      — Format-agnostic document/element schema
-  ingest/
-    base.py               — FormatAdapter ABC + registry
-    pdf_native.py         — PyMuPDF adapter with regex entity extraction
-    pdf_scanned.py        — OCR adapter (Tesseract)
-    dwg.py                — DWG stub (interface demo)
-  delta/
-    align.py              — Stable-key + fuzzy alignment
-    engine.py             — Change classification (added/removed/modified)
-    report.py             — Markdown + JSON report rendering
-  chat/
-    index.py              — In-memory vector retrieval
-    llm.py                — OpenAI-compatible client
-    answer.py             — RAG with citation enforcement
-  markup/
-    overlay.py            — Delta highlights on PDF pages
-  web/
-    app.py                — Gradio UI (upload + report + chat)
-  observability/
-    tracing.py            — Span-based JSONL tracing
-    logging.py            — structlog setup
-  config.py               — Env-var configuration
-eval/
-  metrics.py              — Delta P/R/F1 + answer scoring
-  run_eval.py             — CLI eval harness
-main.py                   — CLI entry point (pipeline / chat / web)
-```
-
-## Formats In Scope
-
-| Format | Status | Adapter |
-|---|---|---|
-| Native PDF | **Working** | `pdf_native.py` — extracts text, tags, line specs, notes |
-| Scanned PDF | **Working** | `pdf_scanned.py` — OCR via Tesseract (requires `tesseract` binary) |
-| Image files (`.png/.jpg/.jpeg/.tif/.tiff/.bmp/.webp`) | **Working** | `image_ocr.py` — OCR via Tesseract (requires `tesseract` binary) |
-| DWG | **Stub** | `dwg.py` — demonstrates the adapter seam |
-
-## Running Tests
-
-```bash
-make test
-# or: uv run pytest tests/ -v
-```
-
-## Lint & Type Check
-
-```bash
-make lint       # ruff
-make typecheck  # mypy --strict
-```
-
-## What's Cut (Take-Home Scope)
-
-- **Persistence:** No database. Session state is in-memory per Gradio session.
-- **Real vector DB:** Uses in-memory cosine similarity. Swap in Chroma/Pinecone for production.
-- **Async pipeline:** All code is synchronous. Gradio runs the pipeline in a thread.
-- **Authentication:** No login. The web UI is open to anyone on the network.
-- **DWG implementation:** Stub only. The adapter interface is ready for ODA/ezdxf integration.
+1. **RAG Chunking Refinement:** Our Candid Failure Table revealed that standard element-by-element chunking often orphans multiline notes. Implementing semantic block chunking for text blobs would instantly improve our QA Correctness score.
+2. **Visual Bounding Box RAG:** Pass the extracted component bounding boxes to a Vision-Language Model to let users ask spatial questions (e.g., "Is the new valve located above the pump?").
+3. **Database & Auth:** Migrate in-memory state to Redis/Postgres and lock down the web server with OAuth for production readiness.
