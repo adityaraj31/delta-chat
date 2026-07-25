@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 
 from src.canonical.model import CanonicalDocument, Element
 from src.delta.engine import DeltaEntry
+
+# Patterns for citation validation
+_PID_CITE_RE = re.compile(r"\[PID:([^:]+):p(\d+):([^\]]+)\]")
+_DELTA_CITE_RE = re.compile(r"\[delta:(\d+)\]")
 
 
 @dataclass
@@ -19,6 +24,15 @@ class IndexEntry:
     element_id: str | None = None
     delta_entry_index: int | None = None
     embedding: list[float] = field(default_factory=list)
+
+
+@dataclass
+class CitationValidation:
+    """Result of validating a single citation string."""
+    raw: str
+    valid: bool
+    entry_id: str | None = None
+    reason: str = ""
 
 
 def _element_to_entry(el: Element, source_label: str) -> IndexEntry:
@@ -55,6 +69,8 @@ class RetrievalIndex:
     def __init__(self, embedding_dim: int = 1536) -> None:
         self._entries: list[IndexEntry] = []
         self._dim = embedding_dim
+        self._element_ids: set[str] = set()
+        self._delta_indices: set[int] = set()
 
     @property
     def entries(self) -> list[IndexEntry]:
@@ -62,11 +78,14 @@ class RetrievalIndex:
 
     def add_document(self, doc: CanonicalDocument, label: str) -> None:
         for el in doc.elements:
-            self._entries.append(_element_to_entry(el, label))
+            entry = _element_to_entry(el, label)
+            self._entries.append(entry)
+            self._element_ids.add(el.id)
 
     def add_delta_entries(self, entries: list[DeltaEntry]) -> None:
         for idx, entry in enumerate(entries):
             self._entries.append(_delta_to_entry(idx, entry))
+            self._delta_indices.add(idx)
 
     def set_embeddings(self, embeddings: dict[str, list[float]]) -> None:
         """Set pre-computed embeddings by entry id."""
@@ -84,6 +103,43 @@ class RetrievalIndex:
             scored.append((entry, sim))
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored[:top_k]
+
+    def validate_citations(self, citations: list[str]) -> list[CitationValidation]:
+        """Check whether each citation resolves to a real element in the index."""
+        results: list[CitationValidation] = []
+        for raw in citations:
+            # Check PID citation
+            m = _PID_CITE_RE.match(raw)
+            if m:
+                element_id = m.group(3)
+                valid = element_id in self._element_ids
+                results.append(CitationValidation(
+                    raw=raw,
+                    valid=valid,
+                    entry_id=element_id if valid else None,
+                    reason="" if valid else f"Element '{element_id}' not found in index",
+                ))
+                continue
+
+            # Check delta citation
+            m = _DELTA_CITE_RE.match(raw)
+            if m:
+                idx = int(m.group(1))
+                valid = idx in self._delta_indices
+                results.append(CitationValidation(
+                    raw=raw,
+                    valid=valid,
+                    entry_id=f"delta-{idx}" if valid else None,
+                    reason="" if valid else f"Delta entry {idx} not found in index",
+                ))
+                continue
+
+            # Unknown format
+            results.append(CitationValidation(
+                raw=raw, valid=False, reason=f"Unrecognized citation format: {raw}",
+            ))
+
+        return results
 
 
 def _cosine(a: list[float], b: list[float]) -> float:

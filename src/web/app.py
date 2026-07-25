@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import tempfile
+import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, UploadFile
+import structlog
+from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -16,6 +18,9 @@ from src.delta.align import align_documents
 from src.delta.engine import DeltaEntry, compute_delta
 from src.delta.report import render_json, render_markdown
 from src.ingest.base import auto_adapter
+from src.observability.logging import bind_correlation_id, new_correlation_id
+
+log = structlog.get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # App state — holds the last analysis result for chat context
@@ -31,6 +36,26 @@ app = FastAPI(title="PID Delta Chat", version="0.1.0")
 
 _static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+
+
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next: Any) -> Any:
+    """Attach a correlation ID to every request and bind it to structlog."""
+    cid = request.headers.get("X-Request-ID") or new_correlation_id()
+    bind_correlation_id(cid)
+    start = time.monotonic()
+    response = await call_next(request)
+    elapsed_ms = round((time.monotonic() - start) * 1000, 1)
+    log.info(
+        "http.request",
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        elapsed_ms=elapsed_ms,
+        correlation_id=cid,
+    )
+    response.headers["X-Request-ID"] = cid
+    return response
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -56,6 +81,9 @@ async def api_delta(
         new_path = Path(tmp_new.name)
 
     try:
+        log.info("delta.start", old=old_file.filename, new=new_file.filename)
+        start = time.monotonic()
+
         old_doc = auto_adapter(old_path).ingest(old_path)
         new_doc = auto_adapter(new_path).ingest(new_path)
 
@@ -72,6 +100,13 @@ async def api_delta(
         removed = sum(1 for e in entries if e.kind.value == "removed")
         modified = sum(1 for e in entries if e.kind.value == "modified")
 
+        elapsed_ms = round((time.monotonic() - start) * 1000, 1)
+        log.info(
+            "delta.complete",
+            elapsed_ms=elapsed_ms,
+            added=added, removed=removed, modified=modified,
+        )
+
         return JSONResponse({
             "report_md": render_markdown(entries, old_doc, new_doc),
             "report_json": render_json(entries, old_doc, new_doc),
@@ -86,6 +121,9 @@ async def api_delta(
                 "total": len(entries),
             },
         })
+    except Exception as exc:
+        log.exception("delta.error", error=str(exc))
+        return JSONResponse({"error": f"Delta analysis failed: {exc}"}, status_code=500)
     finally:
         old_path.unlink(missing_ok=True)
         new_path.unlink(missing_ok=True)
@@ -118,26 +156,44 @@ async def api_chat(body: dict[str, str]) -> JSONResponse:
 
     # Lazily build index + QA
     if _state.get("qa") is None:
-        llm = LLMClient(cfg.chat)
-        index = RetrievalIndex(cfg.chat.embedding_dim)
-        index.add_document(old_doc, "old")
-        index.add_document(new_doc, "new")
-        index.add_delta_entries(entries)
+        try:
+            log.info("chat.index.start")
+            start = time.monotonic()
+            llm = LLMClient(cfg.chat)
+            index = RetrievalIndex(cfg.chat.embedding_dim)
+            index.add_document(old_doc, "old")
+            index.add_document(new_doc, "new")
+            index.add_delta_entries(entries)
 
-        texts = [e.text for e in index.entries]
-        if texts:
-            embeddings = llm.embed(texts)
-            emb_map = {e.id: emb for e, emb in zip(index.entries, embeddings)}
-            index.set_embeddings(emb_map)
+            texts = [e.text for e in index.entries]
+            if texts:
+                embeddings = llm.embed(texts)
+                emb_map = {e.id: emb for e, emb in zip(index.entries, embeddings)}
+                index.set_embeddings(emb_map)
 
-        _state["qa"] = GroundedQA(index, llm, cfg.chat)
+            _state["qa"] = GroundedQA(index, llm, cfg.chat)
+            elapsed_ms = round((time.monotonic() - start) * 1000, 1)
+            log.info("chat.index.complete", elapsed_ms=elapsed_ms, entries=len(texts))
+        except Exception as exc:
+            log.exception("chat.index.error", error=str(exc))
+            return JSONResponse({"error": f"Failed to build index: {exc}"}, status_code=502)
 
-    qa: GroundedQA = _state["qa"]
-    answer = qa.answer(question)
+    try:
+        qa: GroundedQA = _state["qa"]
+        answer = qa.answer(question)
+        log.info("chat.answer.complete", citations=len(answer.citations), citation_rate=answer.citation_rate)
+    except Exception as exc:
+        log.exception("chat.answer.error", error=str(exc))
+        return JSONResponse({"error": f"LLM error: {exc}"}, status_code=502)
 
     return JSONResponse({
         "answer": answer.text,
         "citations": answer.citations,
+        "citation_rate": answer.citation_rate,
+        "validated_citations": [
+            {"raw": c.raw, "valid": c.valid, "reason": c.reason}
+            for c in answer.validated_citations
+        ],
     })
 
 

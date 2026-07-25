@@ -7,6 +7,7 @@ This stub demonstrates the adapter seam and raises a clear error.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from src.canonical.model import CanonicalDocument
 from src.ingest.base import FormatAdapter, register_adapter
@@ -31,9 +32,16 @@ class DwgAdapter(FormatAdapter):
     def can_handle(self, path: Path) -> bool:
         return path.suffix.lower() == ".dwg"
 
-    def ingest(self, path: Path) -> CanonicalDocument:
+    def resolve(self, path: Path) -> tuple[bytes, dict[str, Any]]:
         raise NotImplementedError(
-            f"DWG adapter is a stub. Cannot ingest {path.name}. "
+            f"DWG adapter is a stub. Cannot resolve {path.name}. "
+            "To implement: integrate ODA File Converter or ezdxf, "
+            "then normalise output into CanonicalDocument elements."
+        )
+
+    def parse(self, raw: bytes, metadata: dict[str, Any]) -> CanonicalDocument:
+        raise NotImplementedError(
+            "DWG adapter is a stub. Cannot parse DWG data. "
             "To implement: integrate ODA File Converter or ezdxf, "
             "then normalise output into CanonicalDocument elements."
         )

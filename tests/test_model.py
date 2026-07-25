@@ -81,3 +81,14 @@ def test_title_block_defaults():
     assert tb.project == ""
     assert tb.document_number == ""
     assert tb.extra == {}
+
+
+def test_tag_regex_rejects_short_grid_labels():
+    """Short patterns like D-1 or B-2 must NOT match the tag regex."""
+    from src.ingest.pdf_native import _TAG_RE
+    # Should NOT match
+    for bad in ["D-1", "B-2", "A-10", "X-1", "D-12"]:
+        assert _TAG_RE.search(bad) is None, f"'{bad}' should not match tag regex"
+    # Should still match real instrument tags
+    for good in ["PI-101", "TI-202-01", "FV-101-01", "LIC-3001"]:
+        assert _TAG_RE.search(good) is not None, f"'{good}' should match tag regex"

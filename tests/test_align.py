@@ -87,3 +87,30 @@ def test_delta_empty_docs():
     alignment = align_documents(old, new)
     entries = compute_delta(alignment)
     assert len(entries) == 0
+
+
+def test_delta_noop_identical_tag_not_emitted():
+    """Identical elements matched by stable key must NOT produce a MODIFIED entry."""
+    old = _make_doc([Element(id="a", type=ElementType.TAG, raw_text="PI-101-01", tag_number="PI-101-01")])
+    new = _make_doc([Element(id="a2", type=ElementType.TAG, raw_text="PI-101-01", tag_number="PI-101-01")])
+    alignment = align_documents(old, new)
+    entries = compute_delta(alignment)
+    assert len(entries) == 0, f"Expected 0 entries for identical pair, got {len(entries)}"
+
+
+def test_delta_noop_identical_note_not_emitted():
+    """Identical note elements must not produce a MODIFIED entry."""
+    old = _make_doc([Element(id="n1", type=ElementType.NOTE, raw_text="1. Refer to datasheet", note_number=1)])
+    new = _make_doc([Element(id="n2", type=ElementType.NOTE, raw_text="1. Refer to datasheet", note_number=1)])
+    alignment = align_documents(old, new)
+    entries = compute_delta(alignment)
+    assert len(entries) == 0
+
+
+def test_delta_noop_identical_line_spec_not_emitted():
+    """Identical line-spec elements must not produce a MODIFIED entry."""
+    old = _make_doc([Element(id="l1", type=ElementType.LINE_SPEC, raw_text='4"-CS-12-1234-12345-12', line_spec='4"CS1212341234512')])
+    new = _make_doc([Element(id="l2", type=ElementType.LINE_SPEC, raw_text='4"-CS-12-1234-12345-12', line_spec='4"CS1212341234512')])
+    alignment = align_documents(old, new)
+    entries = compute_delta(alignment)
+    assert len(entries) == 0

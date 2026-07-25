@@ -35,14 +35,24 @@ class PdfScannedAdapter(FormatAdapter):
         # Check if PDF has little or no extractable text (i.e. it's scanned)
         try:
             import fitz  # type: ignore[import-untyped]
-            doc = fitz.open(str(path))
+            raw = path.read_bytes()
+            doc = fitz.open(stream=raw)
             has_text = any(page.get_text().strip() for page in doc)
             doc.close()
             return not has_text  # If no text, it's likely scanned
         except Exception:  # noqa: BLE001
             return False
 
-    def ingest(self, path: Path) -> CanonicalDocument:
+    def resolve(self, path: Path) -> tuple[bytes, dict[str, object]]:
+        raw = path.read_bytes()
+        metadata: dict[str, object] = {
+            "format": "pdf_scanned",
+            "file_size": len(raw),
+            "source_path": str(path),
+        }
+        return raw, metadata
+
+    def parse(self, raw: bytes, metadata: dict[str, object]) -> CanonicalDocument:
         try:
             import fitz
             import pytesseract  # type: ignore[import-not-found]
@@ -53,8 +63,8 @@ class PdfScannedAdapter(FormatAdapter):
                 "Install with: pip install pytesseract Pillow"
             ) from exc
 
-        doc = fitz.open(str(path))
-        source = str(path)
+        source = str(metadata.get("source_path", "unknown"))
+        doc = fitz.open(stream=raw)
         all_elements: list[Element] = []
         title_block = TitleBlock()
 

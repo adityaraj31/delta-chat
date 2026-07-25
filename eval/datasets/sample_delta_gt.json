@@ -1,0 +1,32 @@
+{
+  "description": "Ground truth delta entries for sample PID pair",
+  "old_source": "example_pid_v1.pdf",
+  "new_source": "example_pid_v2.pdf",
+  "entries": [
+    {
+      "kind": "removed",
+      "tag_or_note": "FI-201-01",
+      "description": "Flow indicator FI-201-01 removed from line L-1001"
+    },
+    {
+      "kind": "added",
+      "tag_or_note": "FI-201-02",
+      "description": "New flow indicator FI-201-02 added to line L-1001"
+    },
+    {
+      "kind": "modified",
+      "tag_or_note": "PIC-101-01",
+      "description": "Setpoint changed from 100 PSI to 150 PSI"
+    },
+    {
+      "kind": "modified",
+      "tag_or_note": "note:1",
+      "description": "Note 1 text updated to reflect new operating procedure"
+    },
+    {
+      "kind": "added",
+      "tag_or_note": "XV-301-01",
+      "description": "New emergency shutdown valve added on line L-1002"
+    }
+  ]
+}

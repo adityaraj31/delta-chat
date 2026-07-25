@@ -4,12 +4,22 @@ from __future__ import annotations
 
 import abc
 from pathlib import Path
+from typing import Any
 
 from src.canonical.model import CanonicalDocument
 
 
 class FormatAdapter(abc.ABC):
-    """Every format adapter must implement this interface."""
+    """Every format adapter must implement this interface.
+
+    The two-step interface separates I/O from parsing:
+    - ``resolve(path)`` reads raw bytes + metadata (format, file size, etc.)
+    - ``parse(raw, metadata)`` normalises bytes into a CanonicalDocument
+
+    The high-level ``ingest(path)`` calls resolve then parse by default.
+    Adapters may override ``ingest`` for backward compatibility, but new
+    adapters should implement ``resolve`` + ``parse`` instead.
+    """
 
     @property
     @abc.abstractmethod
@@ -21,8 +31,22 @@ class FormatAdapter(abc.ABC):
         """Return True if this adapter can ingest the given file."""
 
     @abc.abstractmethod
+    def resolve(self, path: Path) -> tuple[bytes, dict[str, Any]]:
+        """Read *path* and return raw bytes + metadata dict.
+
+        Metadata should include at minimum:
+        - ``"format"``: the format name (e.g. ``"pdf"``)
+        - ``"file_size"``: byte length of the raw data
+        """
+
+    @abc.abstractmethod
+    def parse(self, raw: bytes, metadata: dict[str, Any]) -> CanonicalDocument:
+        """Parse raw bytes into a normalised canonical document."""
+
     def ingest(self, path: Path) -> CanonicalDocument:
-        """Parse *path* and return a normalised canonical document."""
+        """High-level entry point: resolve then parse. Override if needed."""
+        raw, metadata = self.resolve(path)
+        return self.parse(raw, metadata)
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} name={self.name!r}>"

@@ -22,6 +22,7 @@ class ElementType(str, enum.Enum):
     TABLE_CELL = "table_cell"
     SYMBOL = "symbol"
     TITLE_BLOCK = "title_block"
+    GEOMETRY = "geometry"
 
 
 class ChangeKind(str, enum.Enum):
@@ -57,6 +58,8 @@ class Element(BaseModel):
     tag_number: str | None = None  # e.g. "PI-101-01"
     line_spec: str | None = None   # e.g. "4"-XX-NN-NNNN"
     note_number: int | None = None
+    setpoint_value: float | None = None  # e.g. 100.0
+    setpoint_unit: str | None = None     # e.g. "PSI", "°F"
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     def stable_key(self) -> str | None:
