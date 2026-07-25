@@ -1,0 +1,17 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${PID_WEB_PORT:-7860}:7860"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./output:/app/output
+
+  # Optional: Tesseract sidecar for scanned PDF OCR
+  # Uncomment if you need OCR without installing Tesseract locally.
+  # tesseract:
+  #   image: openmicrosystems/tesseract:latest
+  #   ports:
+  #     - "8080:8080"
