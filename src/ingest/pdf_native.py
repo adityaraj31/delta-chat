@@ -43,9 +43,10 @@ _SETPOINT_RE = re.compile(
     re.IGNORECASE,
 )
 _SETPOINT_VALUE_RE = re.compile(
-    r"\b([\d.]+)\s*(PSI[G]?|[°]?F|[°]?C|RPM|LPM|GPM|MH[₂Z]|%)\b",
+    r"\b([\d.]+)\s*(PSI[G]?|BARG?|KPA|MPA|[°]?F|[°]?C|RPM|LPM|GPM|MH[₂Z]|%)\b",
     re.IGNORECASE,
 )
+_NUMERIC_ONLY_RE = re.compile(r"^\s*[-+]?\d+(?:\.\d+)?\s*(?:[A-Za-z°%]+)?\s*$")
 
 # Title block fields (common P&ID title block keys)
 _TB_KEYS = {
@@ -143,7 +144,18 @@ def _classify_line(
     # Standalone setpoint line
     sp_val, sp_unit = _extract_setpoint(text)
     if sp_val is not None:
-        return ElementType.TEXT, None, None, None, 0.8, sp_val, sp_unit
+        return ElementType.SETPOINT, None, None, None, 0.88, sp_val, sp_unit
+
+    # Numeric-only lines are often instrument/setpoint values in P&IDs.
+    if _NUMERIC_ONLY_RE.match(text):
+        try:
+            numeric_match = re.search(r"[-+]?\d+(?:\.\d+)?", text)
+            value = float(numeric_match.group(0)) if numeric_match else None
+        except ValueError:
+            value = None
+        unit_match = re.search(r"[A-Za-z°%]+\s*$", text)
+        unit = unit_match.group(0) if unit_match else None
+        return ElementType.SETPOINT, None, None, None, 0.72, value, unit
 
     return ElementType.TEXT, None, None, None, 1.0, None, None
 

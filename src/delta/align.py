@@ -7,12 +7,80 @@ Strategy:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from rapidfuzz import fuzz
 
 from src.canonical.model import CanonicalDocument, Element
 from src.config import DeltaConfig
+
+
+_NUMERIC_ONLY_RE = re.compile(r"^\s*[-+]?\d+(?:\.\d+)?\s*(?:[A-Za-z°%]+)?\s*$")
+
+
+def _center(el: Element) -> tuple[float, float] | None:
+    if el.bbox is None:
+        return None
+    return ((el.bbox.x0 + el.bbox.x1) / 2.0, (el.bbox.y0 + el.bbox.y1) / 2.0)
+
+
+def _distance(a: Element, b: Element) -> float:
+    ac = _center(a)
+    bc = _center(b)
+    if ac is None or bc is None:
+        return float("inf")
+    return ((ac[0] - bc[0]) ** 2 + (ac[1] - bc[1]) ** 2) ** 0.5
+
+
+def _is_plain_numeric(el: Element) -> bool:
+    return bool(_NUMERIC_ONLY_RE.match(el.raw_text.strip()))
+
+
+def _to_context_label(el: Element) -> str:
+    if el.tag_number:
+        return f"{el.tag_number} value"
+    if el.line_spec:
+        return f"Line spec {el.line_spec} value"
+    if el.note_number is not None:
+        return f"Note {el.note_number} value"
+
+    text = el.raw_text.strip()
+    if len(text) > 48:
+        text = text[:48].rstrip() + "..."
+    return text
+
+
+def _enrich_document_context(doc: CanonicalDocument) -> None:
+    """Populate missing grid cells and label numeric values with nearby context."""
+    for el in doc.elements:
+        if el.grid_cell is None and el.bbox is not None:
+            el.grid_cell = el.bbox.calculate_grid_cell()
+
+    for el in doc.elements:
+        if not _is_plain_numeric(el):
+            continue
+        if el.metadata.get("context_label"):
+            continue
+
+        best_label: str | None = None
+        best_distance = float("inf")
+
+        for candidate in doc.elements:
+            if candidate.id == el.id:
+                continue
+            if candidate.page != el.page:
+                continue
+            if _is_plain_numeric(candidate):
+                continue
+
+            dist = _distance(el, candidate)
+            if dist < best_distance:
+                best_distance = dist
+                best_label = _to_context_label(candidate)
+
+        if best_label and best_distance <= 180.0:
+            el.metadata["context_label"] = best_label
 
 
 @dataclass
@@ -34,6 +102,9 @@ def align_documents(
     """Produce an Alignment between two revisions of a document."""
     cfg = config or DeltaConfig()
     alignment = Alignment()
+
+    _enrich_document_context(old)
+    _enrich_document_context(new)
 
     old_by_key = old.stable_keyed_elements()
     new_by_key = new.stable_keyed_elements()

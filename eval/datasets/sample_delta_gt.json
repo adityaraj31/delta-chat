@@ -1,32 +1,61 @@
 {
-  "description": "Ground truth delta entries for sample PID pair",
-  "old_source": "example_pid_v1.pdf",
-  "new_source": "example_pid_v2.pdf",
+  "description": "Ground truth delta entries for the Lift Gas compressor P&ID sample pair",
+  "old_source": "Lift Gas compressor-P&ID.pdf",
+  "new_source": "Lift Gas compressor-P&ID_RevB.pdf",
   "entries": [
     {
       "kind": "removed",
-      "tag_or_note": "FI-201-01",
-      "description": "Flow indicator FI-201-01 removed from line L-1001"
+      "tag_or_note": "CK-911",
+      "description": "Removed: 26-CK-911"
+    },
+    {
+      "kind": "removed",
+      "tag_or_note": "KA-901",
+      "description": "Removed: 26-KA-901"
+    },
+    {
+      "kind": "removed",
+      "tag_or_note": "KA-901",
+      "description": "Removed: 26-KA-901"
+    },
+    {
+      "kind": "removed",
+      "tag_or_note": "KA-901",
+      "description": "Removed: 26-KA-901-M01"
+    },
+    {
+      "kind": "removed",
+      "tag_or_note": "WC-40",
+      "description": "Removed: 3\"-WC-40-9015-AC21-00"
     },
     {
       "kind": "added",
-      "tag_or_note": "FI-201-02",
-      "description": "New flow indicator FI-201-02 added to line L-1001"
+      "description": "Added: -M01"
     },
     {
       "kind": "modified",
-      "tag_or_note": "PIC-101-01",
-      "description": "Setpoint changed from 100 PSI to 150 PSI"
+      "tag_or_note": "WC-40",
+      "description": "Label text changed for WC-40"
     },
     {
       "kind": "modified",
-      "tag_or_note": "note:1",
-      "description": "Note 1 text updated to reflect new operating procedure"
+      "tag_or_note": "WC-40",
+      "description": "Label text changed for WC-40"
     },
     {
-      "kind": "added",
-      "tag_or_note": "XV-301-01",
-      "description": "New emergency shutdown valve added on line L-1002"
+      "kind": "modified",
+      "tag_or_note": "WC-40",
+      "description": "Label text changed for WC-40"
+    },
+    {
+      "kind": "modified",
+      "tag_or_note": "WC-40",
+      "description": "Label text changed for WC-40"
+    },
+    {
+      "kind": "modified",
+      "tag_or_note": "WC-40",
+      "description": "Label text changed for WC-40"
     }
   ]
 }

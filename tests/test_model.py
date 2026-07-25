@@ -92,3 +92,21 @@ def test_tag_regex_rejects_short_grid_labels():
     # Should still match real instrument tags
     for good in ["PI-101", "TI-202-01", "FV-101-01", "LIC-3001"]:
         assert _TAG_RE.search(good) is not None, f"'{good}' should match tag regex"
+
+
+def test_classify_line_detects_explicit_setpoint():
+    from src.ingest.pdf_native import _classify_line
+
+    etype, _tag, _line_spec, _note, _conf, sp_val, sp_unit = _classify_line("SET PRESSURE = 10 barg")
+    assert etype == ElementType.SETPOINT
+    assert sp_val == 10.0
+    assert sp_unit is not None
+    assert sp_unit.lower() == "barg"
+
+
+def test_classify_line_detects_numeric_only_setpoint():
+    from src.ingest.pdf_native import _classify_line
+
+    etype, _tag, _line_spec, _note, _conf, sp_val, _sp_unit = _classify_line("9015")
+    assert etype == ElementType.SETPOINT
+    assert sp_val == 9015.0

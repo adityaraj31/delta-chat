@@ -27,6 +27,7 @@ log = structlog.get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 _state: dict[str, Any] = {}
+_ALLOWED_UPLOAD_EXTS = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
 
 # ---------------------------------------------------------------------------
 # FastAPI app
@@ -68,15 +69,31 @@ async def api_delta(
     old_file: UploadFile = File(...),  # noqa: B008
     new_file: UploadFile = File(...),  # noqa: B008
 ) -> JSONResponse:
-    """Ingest two PDFs and return the delta report."""
+    """Ingest two PDFs/images and return the delta report."""
     cfg = load_config()
 
+    def _suffix_for_upload(upload: UploadFile) -> str:
+        raw_name = upload.filename or ""
+        suffix = Path(raw_name).suffix.lower()
+        if suffix in _ALLOWED_UPLOAD_EXTS:
+            return suffix
+        return ".bin"
+
+    old_suffix = _suffix_for_upload(old_file)
+    new_suffix = _suffix_for_upload(new_file)
+    if old_suffix not in _ALLOWED_UPLOAD_EXTS or new_suffix not in _ALLOWED_UPLOAD_EXTS:
+        supported = ", ".join(sorted(_ALLOWED_UPLOAD_EXTS))
+        return JSONResponse(
+            {"error": f"Unsupported file format. Supported extensions: {supported}"},
+            status_code=400,
+        )
+
     # Save uploads to temp files
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_old:
+    with tempfile.NamedTemporaryFile(suffix=old_suffix, delete=False) as tmp_old:
         tmp_old.write(await old_file.read())
         old_path = Path(tmp_old.name)
 
-    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_new:
+    with tempfile.NamedTemporaryFile(suffix=new_suffix, delete=False) as tmp_new:
         tmp_new.write(await new_file.read())
         new_path = Path(tmp_new.name)
 
@@ -123,7 +140,18 @@ async def api_delta(
         })
     except Exception as exc:
         log.exception("delta.error", error=str(exc))
-        return JSONResponse({"error": f"Delta analysis failed: {exc}"}, status_code=500)
+        status = 500
+        message = str(exc)
+        if "No format adapter found" in message:
+            status = 400
+            message = (
+                "No compatible adapter found for one or both files. "
+                "Supported: PDF, PNG, JPG, JPEG, TIF, TIFF, BMP, WEBP. "
+                "For image/scanned OCR, install the system tesseract binary."
+            )
+        elif "requires the system 'tesseract' binary" in message:
+            status = 400
+        return JSONResponse({"error": f"Delta analysis failed: {message}"}, status_code=status)
     finally:
         old_path.unlink(missing_ok=True)
         new_path.unlink(missing_ok=True)

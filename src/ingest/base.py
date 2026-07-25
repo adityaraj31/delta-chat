@@ -75,6 +75,9 @@ def adapters_for_path(path: Path) -> list[type[FormatAdapter]]:
 
 def auto_adapter(path: Path) -> FormatAdapter:
     """Pick the first matching adapter and return an instance."""
+    # Ensure adapter decorators have run before selecting a handler.
+    import src.ingest  # noqa: F401
+
     candidates = adapters_for_path(path)
     if not candidates:
         raise ValueError(f"No format adapter found for {path}")

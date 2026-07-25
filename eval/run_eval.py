@@ -14,8 +14,8 @@ from src.ingest.base import auto_adapter
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run PID delta eval")
-    parser.add_argument("--old", required=True, help="Old revision PDF")
-    parser.add_argument("--new", required=True, help="New revision PDF")
+    parser.add_argument("--old", required=True, help="Old revision document/image")
+    parser.add_argument("--new", required=True, help="New revision document/image")
     parser.add_argument("--gt-delta", required=True, help="Ground truth delta JSON")
     parser.add_argument("--gt-answers", default=None, help="Ground truth Q&A JSON")
     args = parser.parse_args()

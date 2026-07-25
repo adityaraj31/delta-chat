@@ -1,7 +1,7 @@
 # Tests for alignment and delta engine
 """Tests for src/delta/align.py and src/delta/engine.py."""
 
-from src.canonical.model import CanonicalDocument, Element, ElementType
+from src.canonical.model import BBox, CanonicalDocument, Element, ElementType
 from src.delta.align import align_documents
 from src.delta.engine import compute_delta
 
@@ -114,3 +114,84 @@ def test_delta_noop_identical_line_spec_not_emitted():
     alignment = align_documents(old, new)
     entries = compute_delta(alignment)
     assert len(entries) == 0
+
+
+def test_align_enriches_numeric_context_label_from_nearby_text():
+    old = _make_doc([
+        Element(
+            id="label-1",
+            type=ElementType.TEXT,
+            raw_text="PIT Pressure Indicator Value",
+            page=1,
+            bbox=BBox(x0=100, y0=100, x1=260, y1=120, page=1),
+        ),
+        Element(
+            id="value-old",
+            type=ElementType.SETPOINT,
+            raw_text="9057",
+            page=1,
+            bbox=BBox(x0=270, y0=100, x1=315, y1=120, page=1),
+        ),
+    ])
+    new = _make_doc([
+        Element(
+            id="label-2",
+            type=ElementType.TEXT,
+            raw_text="PIT Pressure Indicator Value",
+            page=1,
+            bbox=BBox(x0=100, y0=100, x1=260, y1=120, page=1),
+        ),
+        Element(
+            id="value-new",
+            type=ElementType.SETPOINT,
+            raw_text="9015",
+            page=1,
+            bbox=BBox(x0=270, y0=100, x1=315, y1=120, page=1),
+        ),
+    ])
+
+    alignment = align_documents(old, new)
+    entries = compute_delta(alignment)
+    assert len(entries) == 1
+    assert "PIT Pressure Indicator Value" in entries[0].description
+
+
+def test_delta_dedupes_duplicate_numeric_modifications_by_grid_and_values():
+    old = _make_doc([
+        Element(
+            id="old-1",
+            type=ElementType.SETPOINT,
+            raw_text="9057",
+            page=1,
+            grid_cell="Grid C-8",
+        ),
+        Element(
+            id="old-2",
+            type=ElementType.SETPOINT,
+            raw_text="9057",
+            page=1,
+            grid_cell="Grid C-8",
+        ),
+    ])
+    new = _make_doc([
+        Element(
+            id="new-1",
+            type=ElementType.SETPOINT,
+            raw_text="9015",
+            page=1,
+            grid_cell="Grid C-8",
+        ),
+        Element(
+            id="new-2",
+            type=ElementType.SETPOINT,
+            raw_text="9015",
+            page=1,
+            grid_cell="Grid C-8",
+        ),
+    ])
+
+    alignment = align_documents(old, new)
+    entries = compute_delta(alignment)
+
+    modified = [e for e in entries if e.kind.value == "modified"]
+    assert len(modified) == 1

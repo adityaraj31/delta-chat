@@ -162,13 +162,13 @@ def main() -> None:
 
     # Pipeline subcommand
     p_pipeline = sub.add_parser("pipeline", help="Run ingest → delta → report")
-    p_pipeline.add_argument("--old", required=True, help="Path to old revision PDF")
-    p_pipeline.add_argument("--new", required=True, help="Path to new revision PDF")
+    p_pipeline.add_argument("--old", required=True, help="Path to old revision document/image")
+    p_pipeline.add_argument("--new", required=True, help="Path to new revision document/image")
 
     # Chat subcommand
     p_chat = sub.add_parser("chat", help="Interactive Q&A over two revisions")
-    p_chat.add_argument("--old", required=True, help="Path to old revision PDF")
-    p_chat.add_argument("--new", required=True, help="Path to new revision PDF")
+    p_chat.add_argument("--old", required=True, help="Path to old revision document/image")
+    p_chat.add_argument("--new", required=True, help="Path to new revision document/image")
 
     # Web subcommand
     sub.add_parser("web", help="Launch Gradio web UI")

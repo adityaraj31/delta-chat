@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 class ElementType(str, enum.Enum):
     """Discriminant for the kind of extracted element."""
     TEXT = "text"
+    SETPOINT = "setpoint"
     TAG = "tag"
     LINE_SPEC = "line_spec"
     NOTE = "note"
@@ -98,6 +99,10 @@ class Element(BaseModel):
             return f"Line Spec '{self.line_spec or self.raw_text}'{location}"
         elif self.type == ElementType.NOTE or self.note_number is not None:
             return f"Note #{self.note_number}{location}: \"{self.raw_text}\""
+        elif self.type == ElementType.SETPOINT or self.setpoint_value is not None:
+            value = self.setpoint_value if self.setpoint_value is not None else self.raw_text
+            unit = f" {self.setpoint_unit}" if self.setpoint_unit else ""
+            return f"Setpoint '{value}{unit}'{location}"
         elif self.type == ElementType.TABLE_CELL:
             return f"Table Value '{self.raw_text}'{location}"
         else:

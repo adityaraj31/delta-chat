@@ -50,9 +50,18 @@ def _delta_to_entry(idx: int, entry: DeltaEntry) -> IndexEntry:
     citation = f"[delta:{idx}]"
     old_part = f"OLD: {entry.old.raw_text}" if entry.old else ""
     new_part = f"NEW: {entry.new.raw_text}" if entry.new else ""
+    desc_part = f"DESC: {entry.description}" if entry.description else ""
+    value_part = ""
+    if entry.old and entry.new:
+        old_val = entry.old.setpoint_value
+        new_val = entry.new.setpoint_value
+        if old_val is not None or new_val is not None:
+            unit = entry.new.setpoint_unit or entry.old.setpoint_unit or ""
+            unit_suffix = f" {unit}" if unit else ""
+            value_part = f" SETPOINT: {old_val}{unit_suffix} -> {new_val}{unit_suffix}"
     return IndexEntry(
         id=f"delta-{idx}",
-        text=f"{citation} {entry.kind.value}: {old_part} {new_part}".strip(),
+        text=f"{citation} {entry.kind.value}: {old_part} {new_part} {desc_part}{value_part}".strip(),
         source_label="delta",
         page=entry.page,
         delta_entry_index=idx,

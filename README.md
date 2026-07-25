@@ -1,6 +1,6 @@
 # PID Delta Chat
 
-Compare two revisions of a P&ID (Piping & Instrumentation Diagram), compute a structured delta, and ask grounded questions about the changes.
+Compare two revisions of a P&ID (Piping & Instrumentation Diagram), compute a structured delta, and ask grounded questions about the changes. Inputs can be PDFs or image files.
 
 ## Quick Start
 
@@ -15,6 +15,10 @@ cp .env.example .env
 # Launch web UI
 make web
 # or: uv run python main.py web
+
+# Optional for OCR on scanned PDFs and image files
+# Ubuntu/Debian: sudo apt install tesseract-ocr
+# macOS: brew install tesseract
 ```
 
 Open http://127.0.0.1:7860, upload two PDF revisions, and click **Run Delta Analysis**.
@@ -102,6 +106,7 @@ main.py                   — CLI entry point (pipeline / chat / web)
 |---|---|---|
 | Native PDF | **Working** | `pdf_native.py` — extracts text, tags, line specs, notes |
 | Scanned PDF | **Working** | `pdf_scanned.py` — OCR via Tesseract (requires `tesseract` binary) |
+| Image files (`.png/.jpg/.jpeg/.tif/.tiff/.bmp/.webp`) | **Working** | `image_ocr.py` — OCR via Tesseract (requires `tesseract` binary) |
 | DWG | **Stub** | `dwg.py` — demonstrates the adapter seam |
 
 ## Running Tests

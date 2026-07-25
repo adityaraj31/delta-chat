@@ -7,6 +7,7 @@ from pathlib import Path
 from src.canonical.model import CanonicalDocument, Element, ElementType, TitleBlock, make_element_id
 from src.config import IngestConfig
 from src.ingest.base import FormatAdapter, register_adapter
+from src.ingest.pdf_native import _classify_line
 
 
 @register_adapter
@@ -110,13 +111,20 @@ class PdfScannedAdapter(FormatAdapter):
                 from src.canonical.model import BBox
                 bbox = BBox(x0=float(x0), y0=float(y0), x1=float(x1), y1=float(y1), page=page_num)
 
+                etype, tag_number, line_spec, note_number, cls_conf, sp_val, sp_unit = _classify_line(text)
+
                 el = Element(
                     id=make_element_id(source, page_num, idx, prefix="ocr"),
-                    type=ElementType.TEXT,
+                    type=etype,
                     raw_text=text,
                     bbox=bbox,
                     page=page_num,
-                    confidence=max(0.0, min(1.0, avg_conf)),
+                    confidence=max(0.0, min(1.0, (avg_conf + cls_conf) / 2.0)),
+                    tag_number=tag_number,
+                    line_spec=line_spec,
+                    note_number=note_number,
+                    setpoint_value=sp_val,
+                    setpoint_unit=sp_unit,
                 )
                 all_elements.append(el)
                 idx += 1

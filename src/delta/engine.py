@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from rapidfuzz import fuzz
 
 from src.canonical.model import ChangeKind, Element
 from src.delta.align import Alignment
+
+
+_NUMERIC_ONLY_RE = re.compile(r"^\s*[-+]?\d+(?:\.\d+)?\s*(?:[A-Za-z°%]+)?\s*$")
 
 
 @dataclass
@@ -67,12 +71,22 @@ def _describe_change(old: Element, new: Element, reasons: list[str]) -> str:
 
     # Generic text change
     if not parts:
+        old_text = old.raw_text.strip()
+        new_text = new.raw_text.strip()
+        if _NUMERIC_ONLY_RE.match(old_text) and _NUMERIC_ONLY_RE.match(new_text):
+            context_label = str(new.metadata.get("context_label") or old.metadata.get("context_label") or "").strip()
+            if context_label:
+                parts.append(f"{context_label} changed from {old_text} to {new_text}")
+            elif new.grid_cell or old.grid_cell:
+                grid = new.grid_cell or old.grid_cell
+                parts.append(f"In {grid}, value updated from {old_text} to {new_text}")
+
         sim = _text_similarity(old.raw_text, new.raw_text)
-        if sim >= 0.95:
+        if not parts and sim >= 0.95:
             parts.append("Minor text edit")
-        elif sim >= 0.5:
+        elif not parts and sim >= 0.5:
             parts.append("Significant text change")
-        else:
+        elif not parts:
             parts.append("Substantially rewritten")
 
     return "; ".join(parts)
@@ -166,7 +180,36 @@ def compute_delta(alignment: Alignment) -> list[DeltaEntry]:
         entries.append(DeltaEntry(kind=ChangeKind.ADDED, new=el, similarity=1.0,
                                   confidence=1.0, description=desc, reasons=["not_in_old"]))
 
+    entries = _dedupe_entries(entries)
+
     # Sort by page then by kind priority
     kind_order = {ChangeKind.REMOVED: 0, ChangeKind.ADDED: 1, ChangeKind.MODIFIED: 2}
     entries.sort(key=lambda e: (e.page, kind_order[e.kind]))
     return entries
+
+
+def _dedupe_entries(entries: list[DeltaEntry]) -> list[DeltaEntry]:
+    """Drop duplicate modified entries with same grid/old/new payload."""
+    deduped: list[DeltaEntry] = []
+    seen_modified: set[tuple[str, str, str]] = set()
+
+    for entry in entries:
+        if entry.kind != ChangeKind.MODIFIED:
+            deduped.append(entry)
+            continue
+
+        old_text = entry.old.raw_text.strip() if entry.old else ""
+        new_text = entry.new.raw_text.strip() if entry.new else ""
+        grid_cell = ""
+        if entry.new and entry.new.grid_cell:
+            grid_cell = entry.new.grid_cell
+        elif entry.old and entry.old.grid_cell:
+            grid_cell = entry.old.grid_cell
+
+        key = (grid_cell, old_text, new_text)
+        if key in seen_modified:
+            continue
+        seen_modified.add(key)
+        deduped.append(entry)
+
+    return deduped
