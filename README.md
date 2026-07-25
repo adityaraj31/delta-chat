@@ -12,6 +12,11 @@ uv sync --extra dev
 cp .env.example .env
 # Edit .env — set PID_LLM_API_KEY
 
+# Optional: enable Langfuse observability
+# LANGFUSE_PUBLIC_KEY=...
+# LANGFUSE_SECRET_KEY=...
+# LANGFUSE_BASE_URL=https://cloud.langfuse.com
+
 # Launch web UI
 make web
 # or: uv run python main.py web
@@ -46,6 +51,8 @@ uv run python eval/run_eval.py \
 ## Configuration
 
 All settings are driven by environment variables (or a `.env` file). See `.env.example` for the full list.
+
+Langfuse traces are created when `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are set. Local run summaries are written to `output/traces/`.
 
 | Variable | Default | Purpose |
 |---|---|---|

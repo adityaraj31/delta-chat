@@ -10,6 +10,7 @@ from src.config import load_config
 from src.delta.align import align_documents
 from src.delta.engine import compute_delta
 from src.ingest.base import auto_adapter
+from src.observability.tracing import init_tracer
 
 
 def main() -> None:
@@ -21,42 +22,57 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config()
+    tracer = init_tracer(cfg.output_dir / "traces")
     old_path = Path(args.old)
     new_path = Path(args.new)
 
-    old_doc = auto_adapter(old_path).ingest(old_path)
-    new_doc = auto_adapter(new_path).ingest(new_path)
+    with tracer.request(
+        "eval",
+        input={"old": str(old_path), "new": str(new_path), "gt_delta": args.gt_delta, "gt_answers": args.gt_answers},
+        metadata={"command": "eval"},
+    ):
+        with tracer.span("ingest", input={"old": str(old_path), "new": str(new_path)}):
+            old_doc = auto_adapter(old_path).ingest(old_path)
+            new_doc = auto_adapter(new_path).ingest(new_path)
 
-    alignment = align_documents(old_doc, new_doc, config=cfg.delta)
-    entries = compute_delta(alignment)
+        with tracer.span("align", input={"old_elements": len(old_doc.elements), "new_elements": len(new_doc.elements)}):
+            alignment = align_documents(old_doc, new_doc, config=cfg.delta)
 
-    gt_delta = load_ground_truth(Path(args.gt_delta))
-    delta_metrics = score_delta(entries, gt_delta["entries"])
+        with tracer.span("compute_delta", input={"matched": len(alignment.matched)}):
+            entries = compute_delta(alignment)
 
-    answer_metrics: list[dict[str, object]] = []
-    if args.gt_answers and cfg.chat.llm_api_key:
-        from src.chat.answer import GroundedQA
-        from src.chat.index import RetrievalIndex
-        from src.chat.llm import LLMClient
+        gt_delta = load_ground_truth(Path(args.gt_delta))
+        with tracer.span("score_delta", input={"predicted": len(entries), "ground_truth": len(gt_delta["entries"])}):
+            delta_metrics = score_delta(entries, gt_delta["entries"])
 
-        llm = LLMClient(cfg.chat)
-        index = RetrievalIndex(cfg.chat.embedding_dim)
-        index.add_document(old_doc, "old")
-        index.add_document(new_doc, "new")
-        index.add_delta_entries(entries)
-        texts = [e.text for e in index.entries]
-        if texts:
-            embeddings = llm.embed(texts)
-            emb_map = {e.id: emb for e, emb in zip(index.entries, embeddings)}
-            index.set_embeddings(emb_map)
-        qa = GroundedQA(index, llm, cfg.chat)
+        answer_metrics: list[dict[str, object]] = []
+        if args.gt_answers and cfg.chat.llm_api_key:
+            from src.chat.answer import GroundedQA
+            from src.chat.index import RetrievalIndex
+            from src.chat.llm import LLMClient
 
-        gt_qa = load_ground_truth(Path(args.gt_answers))
-        for item in gt_qa["questions"]:
-            ans = qa.answer(item["question"])
-            answer_metrics.append(score_answer(ans.text, item["answer"], item.get("citations")))
+            llm = LLMClient(cfg.chat)
+            index = RetrievalIndex(cfg.chat.embedding_dim)
+            index.add_document(old_doc, "old")
+            index.add_document(new_doc, "new")
+            index.add_delta_entries(entries)
+            texts = [e.text for e in index.entries]
+            if texts:
+                with tracer.span("embed_index", input={"entries": len(texts)}, as_type="embedding"):
+                    embeddings = llm.embed(texts)
+                emb_map = {e.id: emb for e, emb in zip(index.entries, embeddings)}
+                index.set_embeddings(emb_map)
+            qa = GroundedQA(index, llm, cfg.chat)
 
-    run_eval(delta_metrics, answer_metrics)
+            gt_qa = load_ground_truth(Path(args.gt_answers))
+            with tracer.span("score_answers", input={"questions": len(gt_qa["questions"])}):
+                for item in gt_qa["questions"]:
+                    ans = qa.answer(item["question"])
+                    answer_metrics.append(score_answer(ans.text, item["answer"], item.get("citations")))
+
+        run_eval(delta_metrics, answer_metrics)
+
+    tracer.flush()
 
 
 if __name__ == "__main__":

@@ -19,6 +19,7 @@ from src.delta.engine import DeltaEntry, compute_delta
 from src.delta.report import render_json, render_markdown
 from src.ingest.base import auto_adapter
 from src.observability.logging import bind_correlation_id, new_correlation_id
+from src.observability.tracing import get_tracer, init_tracer
 
 log = structlog.get_logger(__name__)
 
@@ -71,6 +72,7 @@ async def api_delta(
 ) -> JSONResponse:
     """Ingest two PDFs/images and return the delta report."""
     cfg = load_config()
+    tracer = get_tracer()
 
     def _suffix_for_upload(upload: UploadFile) -> str:
         raw_name = upload.filename or ""
@@ -101,43 +103,51 @@ async def api_delta(
         log.info("delta.start", old=old_file.filename, new=new_file.filename)
         start = time.monotonic()
 
-        old_doc = auto_adapter(old_path).ingest(old_path)
-        new_doc = auto_adapter(new_path).ingest(new_path)
+        with tracer.request(
+            "web.delta",
+            input={"old": old_file.filename, "new": new_file.filename},
+            metadata={"endpoint": "/api/delta"},
+        ):
+            old_doc = auto_adapter(old_path).ingest(old_path)
+            new_doc = auto_adapter(new_path).ingest(new_path)
 
-        alignment = align_documents(old_doc, new_doc, config=cfg.delta)
-        entries = compute_delta(alignment)
+            with tracer.span("align", input={"old_elements": len(old_doc.elements), "new_elements": len(new_doc.elements)}):
+                alignment = align_documents(old_doc, new_doc, config=cfg.delta)
 
-        # Store for chat
-        _state["old_doc"] = old_doc
-        _state["new_doc"] = new_doc
-        _state["entries"] = entries
-        _state["qa"] = None  # reset QA on new analysis
+            with tracer.span("compute_delta", input={"matched": len(alignment.matched)}):
+                entries = compute_delta(alignment)
 
-        added = sum(1 for e in entries if e.kind.value == "added")
-        removed = sum(1 for e in entries if e.kind.value == "removed")
-        modified = sum(1 for e in entries if e.kind.value == "modified")
+            # Store for chat
+            _state["old_doc"] = old_doc
+            _state["new_doc"] = new_doc
+            _state["entries"] = entries
+            _state["qa"] = None  # reset QA on new analysis
 
-        elapsed_ms = round((time.monotonic() - start) * 1000, 1)
-        log.info(
-            "delta.complete",
-            elapsed_ms=elapsed_ms,
-            added=added, removed=removed, modified=modified,
-        )
+            added = sum(1 for e in entries if e.kind.value == "added")
+            removed = sum(1 for e in entries if e.kind.value == "removed")
+            modified = sum(1 for e in entries if e.kind.value == "modified")
 
-        return JSONResponse({
-            "report_md": render_markdown(entries, old_doc, new_doc),
-            "report_json": render_json(entries, old_doc, new_doc),
-            "summary": {
-                "old_elements": len(old_doc.elements),
-                "old_pages": old_doc.page_count,
-                "new_elements": len(new_doc.elements),
-                "new_pages": new_doc.page_count,
-                "added": added,
-                "removed": removed,
-                "modified": modified,
-                "total": len(entries),
-            },
-        })
+            elapsed_ms = round((time.monotonic() - start) * 1000, 1)
+            log.info(
+                "delta.complete",
+                elapsed_ms=elapsed_ms,
+                added=added, removed=removed, modified=modified,
+            )
+
+            return JSONResponse({
+                "report_md": render_markdown(entries, old_doc, new_doc),
+                "report_json": render_json(entries, old_doc, new_doc),
+                "summary": {
+                    "old_elements": len(old_doc.elements),
+                    "old_pages": old_doc.page_count,
+                    "new_elements": len(new_doc.elements),
+                    "new_pages": new_doc.page_count,
+                    "added": added,
+                    "removed": removed,
+                    "modified": modified,
+                    "total": len(entries),
+                },
+            })
     except Exception as exc:
         log.exception("delta.error", error=str(exc))
         status = 500
@@ -155,12 +165,14 @@ async def api_delta(
     finally:
         old_path.unlink(missing_ok=True)
         new_path.unlink(missing_ok=True)
+        tracer.flush()
 
 
 @app.post("/api/chat")
 async def api_chat(body: dict[str, str]) -> JSONResponse:
     """Answer a question grounded in the uploaded documents + delta."""
     cfg = load_config()
+    tracer = get_tracer()
     question = body.get("question", "").strip()
 
     if not question:
@@ -187,23 +199,26 @@ async def api_chat(body: dict[str, str]) -> JSONResponse:
         try:
             log.info("chat.index.start")
             start = time.monotonic()
-            llm = LLMClient(cfg.chat)
-            index = RetrievalIndex(cfg.chat.embedding_dim)
-            index.add_document(old_doc, "old")
-            index.add_document(new_doc, "new")
-            index.add_delta_entries(entries)
+            with tracer.span("chat.index", input={"entries": len(entries)}):
+                llm = LLMClient(cfg.chat)
+                index = RetrievalIndex(cfg.chat.embedding_dim)
+                index.add_document(old_doc, "old")
+                index.add_document(new_doc, "new")
+                index.add_delta_entries(entries)
 
-            texts = [e.text for e in index.entries]
-            if texts:
-                embeddings = llm.embed(texts)
-                emb_map = {e.id: emb for e, emb in zip(index.entries, embeddings)}
-                index.set_embeddings(emb_map)
+                texts = [e.text for e in index.entries]
+                if texts:
+                    with tracer.span("retrieval.embed", input={"text_count": len(texts)}, as_type="embedding"):
+                        embeddings = llm.embed(texts)
+                    emb_map = {e.id: emb for e, emb in zip(index.entries, embeddings)}
+                    index.set_embeddings(emb_map)
 
-            _state["qa"] = GroundedQA(index, llm, cfg.chat)
+                _state["qa"] = GroundedQA(index, llm, cfg.chat)
             elapsed_ms = round((time.monotonic() - start) * 1000, 1)
             log.info("chat.index.complete", elapsed_ms=elapsed_ms, entries=len(texts))
         except Exception as exc:
             log.exception("chat.index.error", error=str(exc))
+            tracer.flush()
             return JSONResponse({"error": f"Failed to build index: {exc}"}, status_code=502)
 
     try:
@@ -212,6 +227,7 @@ async def api_chat(body: dict[str, str]) -> JSONResponse:
         log.info("chat.answer.complete", citations=len(answer.citations), citation_rate=answer.citation_rate)
     except Exception as exc:
         log.exception("chat.answer.error", error=str(exc))
+        tracer.flush()
         return JSONResponse({"error": f"LLM error: {exc}"}, status_code=502)
 
     return JSONResponse({
@@ -230,6 +246,7 @@ def launch(config: Config | None = None) -> None:
     import uvicorn
 
     cfg = config or load_config()
+    init_tracer(cfg.output_dir / "traces")
     uvicorn.run(
         app,
         host=cfg.web.host,
