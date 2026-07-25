@@ -1,0 +1,49 @@
+{
+  "description": "Ground truth delta entries for the sample OCR image pair",
+  "old_source": "gas_ocr.png",
+  "new_source": "gas_ocr_revision.png",
+  "entries": [
+    {
+      "kind": "added",
+      "tag_or_note": "FIT-103",
+      "description": "New FIT-103 instrument added above the compressor inlet"
+    },
+    {
+      "kind": "added",
+      "tag_or_note": "CV-103",
+      "description": "New CV-103 bypass valve added on the compressor inlet"
+    },
+    {
+      "kind": "modified",
+      "description": "Title subtitle changed from Abridged for OCR Testing to Revision 1, P&ID Updates"
+    },
+    {
+      "kind": "modified",
+      "description": "Inlet pressure updated from 25 barG to 25.5 barG"
+    },
+    {
+      "kind": "modified",
+      "description": "Inlet temperature updated from 40 C to 40.2 C"
+    },
+    {
+      "kind": "modified",
+      "description": "Outlet pressure updated from 90 barG to 89.8 barG"
+    },
+    {
+      "kind": "modified",
+      "description": "Outlet temperature updated from 80 C to 81.1 C"
+    },
+    {
+      "kind": "modified",
+      "description": "Compressor speed updated from 8000 RPM to 7980 RPM"
+    },
+    {
+      "kind": "modified",
+      "description": "Compressor power updated from 1.2 MW to 1.18 MW"
+    },
+    {
+      "kind": "added",
+      "description": "Revision block added with the CV-103 bypass loop and updated tables note"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "description": "Ground truth Q&A pairs for the sample OCR image pair",
+  "questions": [
+    {
+      "question": "What new instruments were added in the revised image?",
+      "answer": "FIT-103 and CV-103 were added.",
+      "citations": ["[delta:0]", "[delta:1]"]
+    },
+    {
+      "question": "What changed in the process values table?",
+      "answer": "The process values changed to 25.5 barG inlet pressure, 40.2 C inlet temperature, 89.8 barG outlet pressure, and 81.1 C outlet temperature.",
+      "citations": ["[delta:3]", "[delta:4]", "[delta:5]", "[delta:6]"]
+    },
+    {
+      "question": "What changed in the compressor specs table?",
+      "answer": "The compressor speed changed to 7980 RPM and the power changed to 1.18 MW.",
+      "citations": ["[delta:7]", "[delta:8]"]
+    },
+    {
+      "question": "What did the revision block add?",
+      "answer": "A revision block was added noting the CV-103 bypass loop and updated tables.",
+      "citations": ["[delta:9]"]
+    }
+  ]
+}

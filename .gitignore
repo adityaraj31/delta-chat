@@ -1,27 +1,43 @@
-# Python-generated files
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python bytecode and caches
 __pycache__/
-*.py[oc]
+*.py[cod]
+*.pyd
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Packaging / build output
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
 
-# Virtual environments
-.venv
-
-# Environment / secrets
-.env
-
-# Output
+# Local tool output
 output/
 traces/
-
-# IDE
-.vscode/
-.idea/
-
-# Gradio
 .gradio/
 
-# Sample data (large binaries)
-data/samples/*.pdf
+# IDE / editor state
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project sample binaries are checked in only when explicitly needed.
+data/sample_pdf/*
+!data/sample_pdf/README.md
+data/sample_image/*
+!data/sample_image/README.md

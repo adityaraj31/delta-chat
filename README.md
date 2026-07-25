@@ -34,6 +34,13 @@ make chat OLD=data/samples/old.pdf NEW=data/samples/new.pdf
 
 # Eval harness
 make eval OLD=data/samples/old.pdf NEW=data/samples/new.pdf GT=eval/datasets/ground_truth.json
+
+# Sample OCR image eval
+uv run python eval/run_eval.py \
+  --old data/sample_image/gas_ocr.png \
+  --new data/sample_image/gas_ocr_revision.png \
+  --gt-delta eval/datasets/sample_image_delta_gt.json \
+  --gt-answers eval/datasets/sample_image_qa_gt.json
 ```
 
 ## Configuration
