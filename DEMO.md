@@ -2,7 +2,18 @@
 
 This walkthrough demonstrates the core functionality of the PID Delta Chat pipeline: ingesting two P&ID revisions, extracting a structured delta, and grounding an interactive chat session on the extracted changes.
 
-## 1. Pipeline Execution (Ingest → Delta → Report)
+## 1. Web UI (Gradio)
+
+The application provides a fully integrated Web UI. Users can upload both old and new P&ID revisions and instantly run the delta engine.
+
+### Analysis Tab
+![Web UI Analysis Tab](assets/analysis_tab.png)
+
+### Q&A Tab
+Users can ask grounded questions about the uploaded diagrams directly in the interface.
+![Web UI Q&A Tab](assets/qa_tab.png)
+
+## 2. CLI Pipeline Execution (Ingest → Delta → Report)
 
 We run the analysis using the unified CLI pipeline command. The `auto_adapter` seamlessly routes the scanned PNG files to the OCR ingestion path.
 
@@ -16,7 +27,7 @@ $ make run OLD=data/sample_image/gas_ocr.png NEW=data/sample_image/gas_ocr_revis
 
 The system successfully generates human-readable (`report.md`) and machine-readable (`report.json`) delta outputs, classifying changes into insertions, deletions, and modifications.
 
-## 2. Interactive Chat (Grounded QA)
+## 3. Interactive Chat (Grounded QA)
 
 We can seamlessly launch into a chat mode targeting the exact delta we just computed. The RAG architecture strictly enforces citations to prevent hallucination.
 
@@ -32,7 +43,7 @@ Q: Did they add any new instrumentation to the main line?
 A: Yes, a new flow transmitter (FT-205) was added to the main gas line downstream of the control valve [delta:1].
 ```
 
-## 3. Evaluation Scorecard
+## 4. Evaluation Scorecard
 
 We built an automated evaluation harness leveraging an LLM-as-a-judge to programmatically score delta detection accuracy and chat groundedness.
 
