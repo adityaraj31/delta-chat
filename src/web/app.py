@@ -1,93 +1,123 @@
-"""Gradio web UI — upload two PIDs, see the delta, ask questions."""
+"""FastAPI backend — upload PDFs, run delta, ask questions."""
 
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from typing import Any
 
-import gradio as gr
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from src.canonical.model import CanonicalDocument
 from src.config import Config, load_config
 from src.delta.align import align_documents
 from src.delta.engine import DeltaEntry, compute_delta
-from src.delta.report import render_markdown
+from src.delta.report import render_json, render_markdown
 from src.ingest.base import auto_adapter
 
+# ---------------------------------------------------------------------------
+# App state — holds the last analysis result for chat context
+# ---------------------------------------------------------------------------
 
-def _run_delta(
-    old_path: str | None,
-    new_path: str | None,
-) -> tuple[str, str]:
-    """Ingest both PDFs, compute delta, return (report_md, summary)."""
-    if not old_path or not new_path:
-        return "*Please upload both PDFs.*", ""
+_state: dict[str, Any] = {}
 
+# ---------------------------------------------------------------------------
+# FastAPI app
+# ---------------------------------------------------------------------------
+
+app = FastAPI(title="PID Delta Chat", version="0.1.0")
+
+_static_dir = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index() -> str:
+    return (_static_dir / "index.html").read_text()
+
+
+@app.post("/api/delta")
+async def api_delta(
+    old_file: UploadFile = File(...),  # noqa: B008
+    new_file: UploadFile = File(...),  # noqa: B008
+) -> JSONResponse:
+    """Ingest two PDFs and return the delta report."""
     cfg = load_config()
 
-    old_doc = auto_adapter(Path(old_path)).ingest(Path(old_path))
-    new_doc = auto_adapter(Path(new_path)).ingest(Path(new_path))
+    # Save uploads to temp files
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_old:
+        tmp_old.write(await old_file.read())
+        old_path = Path(tmp_old.name)
 
-    alignment = align_documents(old_doc, new_doc, config=cfg.delta)
-    entries = compute_delta(alignment)
+    with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp_new:
+        tmp_new.write(await new_file.read())
+        new_path = Path(tmp_new.name)
 
-    report = render_markdown(entries, old_doc, new_doc)
+    try:
+        old_doc = auto_adapter(old_path).ingest(old_path)
+        new_doc = auto_adapter(new_path).ingest(new_path)
 
-    summary = (
-        f"**Old:** {len(old_doc.elements)} elements across {old_doc.page_count} pages  \n"
-        f"**New:** {len(new_doc.elements)} elements across {new_doc.page_count} pages  \n"
-        f"**Changes:** {len(entries)} total "
-        f"({sum(1 for e in entries if e.kind.value == 'added')} added, "
-        f"{sum(1 for e in entries if e.kind.value == 'removed')} removed, "
-        f"{sum(1 for e in entries if e.kind.value == 'modified')} modified)"
-    )
+        alignment = align_documents(old_doc, new_doc, config=cfg.delta)
+        entries = compute_delta(alignment)
 
-    # Store for chat — we use gr.State, so return via separate mechanism
-    _last_run["old_doc"] = old_doc
-    _last_run["new_doc"] = new_doc
-    _last_run["entries"] = entries
+        # Store for chat
+        _state["old_doc"] = old_doc
+        _state["new_doc"] = new_doc
+        _state["entries"] = entries
+        _state["qa"] = None  # reset QA on new analysis
 
-    return report, summary
+        added = sum(1 for e in entries if e.kind.value == "added")
+        removed = sum(1 for e in entries if e.kind.value == "removed")
+        modified = sum(1 for e in entries if e.kind.value == "modified")
+
+        return JSONResponse({
+            "report_md": render_markdown(entries, old_doc, new_doc),
+            "report_json": render_json(entries, old_doc, new_doc),
+            "summary": {
+                "old_elements": len(old_doc.elements),
+                "old_pages": old_doc.page_count,
+                "new_elements": len(new_doc.elements),
+                "new_pages": new_doc.page_count,
+                "added": added,
+                "removed": removed,
+                "modified": modified,
+                "total": len(entries),
+            },
+        })
+    finally:
+        old_path.unlink(missing_ok=True)
+        new_path.unlink(missing_ok=True)
 
 
-# Module-level state to share between delta and chat tabs
-_last_run: dict[str, Any] = {}
-
-
-def _chat_respond(
-    message: str,
-    history: list[dict[str, str]],
-) -> tuple[str, list[dict[str, str]]]:
+@app.post("/api/chat")
+async def api_chat(body: dict[str, str]) -> JSONResponse:
     """Answer a question grounded in the uploaded documents + delta."""
-    if not message.strip():
-        return "", history
-
     cfg = load_config()
+    question = body.get("question", "").strip()
 
-    if "old_doc" not in _last_run:
-        history.append({"role": "assistant", "content": "Please run a delta analysis first (Analysis tab)."})
-        return "", history
+    if not question:
+        return JSONResponse({"error": "Empty question"}, status_code=400)
+
+    if "old_doc" not in _state:
+        return JSONResponse({"error": "Run a delta analysis first"}, status_code=400)
 
     if not cfg.chat.llm_api_key:
-        history.append({
-            "role": "assistant",
-            "content": (
-                "LLM not configured. Set `PID_LLM_API_KEY` to enable chat. "
-                "You can view the delta report in the Analysis tab without the API key."
-            ),
-        })
-        return "", history
+        return JSONResponse({
+            "error": "LLM not configured. Set PID_LLM_API_KEY.",
+        }, status_code=400)
 
     from src.chat.answer import GroundedQA
     from src.chat.index import RetrievalIndex
     from src.chat.llm import LLMClient
 
-    old_doc: CanonicalDocument = _last_run["old_doc"]
-    new_doc: CanonicalDocument = _last_run["new_doc"]
-    entries: list[DeltaEntry] = _last_run["entries"]
+    old_doc: CanonicalDocument = _state["old_doc"]
+    new_doc: CanonicalDocument = _state["new_doc"]
+    entries: list[DeltaEntry] = _state["entries"]
 
-    # Lazily build index + QA on first question
-    if "qa" not in _last_run:
+    # Lazily build index + QA
+    if _state.get("qa") is None:
         llm = LLMClient(cfg.chat)
         index = RetrievalIndex(cfg.chat.embedding_dim)
         index.add_document(old_doc, "old")
@@ -100,87 +130,25 @@ def _chat_respond(
             emb_map = {e.id: emb for e, emb in zip(index.entries, embeddings)}
             index.set_embeddings(emb_map)
 
-        _last_run["qa"] = GroundedQA(index, llm, cfg.chat)
+        _state["qa"] = GroundedQA(index, llm, cfg.chat)
 
-    qa: GroundedQA = _last_run["qa"]
-    answer = qa.answer(message)
+    qa: GroundedQA = _state["qa"]
+    answer = qa.answer(question)
 
-    history.append({"role": "user", "content": message})
-    history.append({"role": "assistant", "content": answer.text})
-    return "", history
-
-
-def build_app(config: Config | None = None) -> gr.Blocks:
-    """Build and return the Gradio Blocks app."""
-    cfg = config or load_config()
-
-    with gr.Blocks(
-        title="PID Delta Chat",
-    ) as app:
-        gr.Markdown("# PID Revision Delta Analysis")
-
-        with gr.Tabs():
-            # ---- Tab 1: Analysis ----
-            with gr.Tab("Analysis"):
-                gr.Markdown("Upload two revisions of a P&ID to compare them.")
-                with gr.Row():
-                    old_file = gr.File(
-                        label="Original PID (old)",
-                        file_types=[".pdf"],
-                        file_count="single",
-                        type="filepath",
-                    )
-                    new_file = gr.File(
-                        label="Revised PID (new)",
-                        file_types=[".pdf"],
-                        file_count="single",
-                        type="filepath",
-                    )
-
-                run_btn = gr.Button("Run Delta Analysis", variant="primary")
-                summary = gr.Markdown("*Upload two PDFs and click Run Delta Analysis.*")
-                report = gr.Markdown(
-                    value="",
-                    label="Delta Report",
-                    height=600,
-                )
-
-                run_btn.click(
-                    fn=_run_delta,
-                    inputs=[old_file, new_file],
-                    outputs=[report, summary],
-                )
-
-            # ---- Tab 2: Q&A ----
-            with gr.Tab("Q&A"):
-                if not cfg.chat.llm_api_key:
-                    gr.Markdown(
-                        "**Chat disabled** — set `PID_LLM_API_KEY` to enable "
-                        "grounded Q&A over your documents."
-                    )
-                chatbot = gr.Chatbot(height=500)
-                msg = gr.Textbox(
-                    placeholder="Ask about the delta report...",
-                    label="Question",
-                )
-                _clear = gr.ClearButton([msg, chatbot])
-                msg.submit(
-                    fn=_chat_respond,
-                    inputs=[msg, chatbot],
-                    outputs=[msg, chatbot],
-                )
-
-    return app  # type: ignore[no-any-return]
+    return JSONResponse({
+        "answer": answer.text,
+        "citations": answer.citations,
+    })
 
 
 def launch(config: Config | None = None) -> None:
-    """Build and launch the Gradio app."""
+    """Build and launch the FastAPI app."""
+    import uvicorn
+
     cfg = config or load_config()
-    app = build_app(cfg)
-    app.launch(
-        server_name=cfg.web.host,
-        server_port=cfg.web.port,
-        share=cfg.web.share,
-        show_error=True,
-        theme=gr.themes.Soft(),
+    uvicorn.run(
+        app,
+        host=cfg.web.host,
+        port=cfg.web.port,
+        log_level=cfg.log_level.lower(),
     )

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PID Delta Chat</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #333; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 1.5rem; margin-bottom: 16px; }
+    .tabs { display: flex; gap: 0; margin-bottom: 0; }
+    .tab { padding: 10px 20px; background: #ddd; border: none; cursor: pointer; font-size: 0.95rem; border-radius: 6px 6px 0 0; }
+    .tab.active { background: #fff; font-weight: 600; }
+    .panel { display: none; background: #fff; border: 1px solid #ddd; border-radius: 0 6px 6px 6px; padding: 24px; }
+    .panel.active { display: block; }
+
+    /* Upload */
+    .upload-row { display: flex; gap: 24px; margin-bottom: 16px; }
+    .upload-box { flex: 1; border: 2px dashed #bbb; border-radius: 8px; padding: 32px; text-align: center; cursor: pointer; transition: border-color 0.2s; position: relative; }
+    .upload-box:hover { border-color: #4a90d9; }
+    .upload-box.has-file { border-color: #4a90d9; background: #f0f6ff; }
+    .upload-box input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .upload-box .label { font-weight: 600; margin-bottom: 4px; }
+    .upload-box .filename { color: #666; font-size: 0.9rem; }
+    button.primary { background: #4a90d9; color: #fff; border: none; padding: 10px 24px; border-radius: 6px; font-size: 1rem; cursor: pointer; }
+    button.primary:hover { background: #357abd; }
+    button.primary:disabled { background: #aaa; cursor: not-allowed; }
+
+    /* Summary */
+    .summary { margin: 16px 0; padding: 12px 16px; background: #f9f9f9; border-radius: 6px; font-size: 0.9rem; line-height: 1.6; display: none; }
+    .summary.show { display: block; }
+
+    /* Report */
+    .report { max-height: 500px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 16px; font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap; display: none; }
+    .report.show { display: block; }
+
+    /* Chat */
+    .chat-box { height: 400px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 16px; margin-bottom: 12px; background: #fafafa; }
+    .msg { margin-bottom: 12px; }
+    .msg.user .role { font-weight: 600; color: #4a90d9; }
+    .msg.bot .role { font-weight: 600; color: #2d8f2d; }
+    .msg .text { margin-top: 2px; white-space: pre-wrap; }
+    .chat-input { display: flex; gap: 8px; }
+    .chat-input input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.95rem; }
+    .chat-input button { padding: 10px 20px; }
+    .error { color: #c00; margin-top: 8px; font-size: 0.85rem; }
+    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #aaa; border-top-color: #333; border-radius: 50%; animation: spin 0.6s linear infinite; margin-left: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PID Revision Delta Analysis</h1>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('analysis')">Analysis</button>
+      <button class="tab" onclick="switchTab('chat')">Q&amp;A</button>
+    </div>
+
+    <!-- Analysis Tab -->
+    <div id="panel-analysis" class="panel active">
+      <div class="upload-row">
+        <div class="upload-box" id="box-old">
+          <input type="file" accept=".pdf" id="file-old" onchange="onFileSelected('old')">
+          <div class="label">Original PID (old)</div>
+          <div class="filename" id="name-old">Click or drag to upload</div>
+        </div>
+        <div class="upload-box" id="box-new">
+          <input type="file" accept=".pdf" id="file-new" onchange="onFileSelected('new')">
+          <div class="label">Revised PID (new)</div>
+          <div class="filename" id="name-new">Click or drag to upload</div>
+        </div>
+      </div>
+      <button class="primary" id="btn-run" onclick="runDelta()" disabled>Run Delta Analysis</button>
+      <div class="error" id="delta-error"></div>
+      <div class="summary" id="summary"></div>
+      <div class="report" id="report"></div>
+    </div>
+
+    <!-- Chat Tab -->
+    <div id="panel-chat" class="panel">
+      <div class="chat-box" id="chat-box"></div>
+      <div class="chat-input">
+        <input type="text" id="chat-msg" placeholder="Ask about the delta report..." onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="primary" onclick="sendChat()">Ask</button>
+      </div>
+      <div class="error" id="chat-error"></div>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (name === 'analysis' ? i === 0 : i === 1)));
+      document.getElementById('panel-analysis').classList.toggle('active', name === 'analysis');
+      document.getElementById('panel-chat').classList.toggle('active', name === 'chat');
+    }
+
+    function onFileSelected(side) {
+      const input = document.getElementById('file-' + side);
+      const label = document.getElementById('name-' + side);
+      const box = document.getElementById('box-' + side);
+      if (input.files.length) {
+        label.textContent = input.files[0].name;
+        box.classList.add('has-file');
+      }
+      updateRunButton();
+    }
+
+    function updateRunButton() {
+      const old = document.getElementById('file-old').files.length;
+      const new_ = document.getElementById('file-new').files.length;
+      document.getElementById('btn-run').disabled = !(old && new_);
+    }
+
+    async function runDelta() {
+      const btn = document.getElementById('btn-run');
+      const errEl = document.getElementById('delta-error');
+      const summaryEl = document.getElementById('summary');
+      const reportEl = document.getElementById('report');
+      errEl.textContent = '';
+      summaryEl.classList.remove('show');
+      reportEl.classList.remove('show');
+      btn.disabled = true;
+      btn.innerHTML = 'Analyzing...<span class="spinner"></span>';
+
+      const form = new FormData();
+      form.append('old_file', document.getElementById('file-old').files[0]);
+      form.append('new_file', document.getElementById('file-new').files[0]);
+
+      try {
+        const resp = await fetch('/api/delta', { method: 'POST', body: form });
+        const data = await resp.json();
+        if (!resp.ok) { errEl.textContent = data.error || 'Delta analysis failed'; return; }
+        const s = data.summary;
+        summaryEl.innerHTML = `<strong>Old:</strong> ${s.old_elements} elements, ${s.old_pages} pages &nbsp;|&nbsp; <strong>New:</strong> ${s.new_elements} elements, ${s.new_pages} pages<br><strong>Changes:</strong> ${s.total} total (${s.added} added, ${s.removed} removed, ${s.modified} modified)`;
+        summaryEl.classList.add('show');
+        reportEl.textContent = data.report_md;
+        reportEl.classList.add('show');
+      } catch (e) {
+        errEl.textContent = 'Network error: ' + e.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run Delta Analysis';
+      }
+    }
+
+    async function sendChat() {
+      const input = document.getElementById('chat-msg');
+      const errEl = document.getElementById('chat-error');
+      const box = document.getElementById('chat-box');
+      const msg = input.value.trim();
+      if (!msg) return;
+      errEl.textContent = '';
+      input.value = '';
+
+      addMsg('user', msg);
+      addMsg('bot', '...');
+
+      try {
+        const resp = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: msg }),
+        });
+        const data = await resp.json();
+        // Remove the placeholder "..."
+        const lastBot = box.querySelector('.msg:last-child .text');
+        if (data.error) {
+          lastBot.textContent = data.error;
+          lastBot.style.color = '#c00';
+        } else {
+          lastBot.textContent = data.answer;
+          if (data.citations.length) {
+            lastBot.textContent += '\n\nCitations: ' + data.citations.join(', ');
+          }
+        }
+      } catch (e) {
+        const lastBot = box.querySelector('.msg:last-child .text');
+        lastBot.textContent = 'Network error: ' + e.message;
+        lastBot.style.color = '#c00';
+      }
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function addMsg(role, text) {
+      const box = document.getElementById('chat-box');
+      const div = document.createElement('div');
+      div.className = 'msg ' + (role === 'user' ? 'user' : 'bot');
+      div.innerHTML = `<div class="role">${role === 'user' ? 'You' : 'Assistant'}</div><div class="text">${escHtml(text)}</div>`;
+      box.appendChild(div);
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+  </script>
+</body>
+</html>

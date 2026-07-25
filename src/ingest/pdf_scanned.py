@@ -46,7 +46,7 @@ class PdfScannedAdapter(FormatAdapter):
         try:
             import fitz
             import pytesseract  # type: ignore[import-not-found]
-            from PIL import Image
+            from PIL import Image  # type: ignore[import-not-found]
         except ImportError as exc:
             raise ImportError(
                 "OCR adapter requires pytesseract and Pillow. "

@@ -149,7 +149,7 @@ def cmd_chat(args: argparse.Namespace) -> None:
 
 
 def cmd_web(_args: argparse.Namespace) -> None:
-    """Launch the Gradio web UI."""
+    """Launch the FastAPI web server."""
     cfg = load_config()
     setup_logging(cfg.log_level)
     from src.web.app import launch

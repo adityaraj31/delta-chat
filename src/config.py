@@ -6,9 +6,11 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 
 def _env(key: str, default: str = "") -> str:
-    return os.environ.get(key, default)
+    return os.environ.get(key, default).strip()
 
 
 def _env_int(key: str, default: int = 0) -> int:
@@ -74,4 +76,5 @@ class Config:
 
 def load_config() -> Config:
     """Load config from environment. Call once at startup."""
+    load_dotenv()  # loads .env file into os.environ
     return Config()
