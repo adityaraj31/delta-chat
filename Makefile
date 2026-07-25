@@ -1,4 +1,4 @@
-.PHONY: install lint typecheck test run chat web serve eval clean help
+.PHONY: install lint typecheck test run chat web serve eval sample-image-eval clean help
 
 help:
 	@echo "Usage:"
@@ -11,6 +11,7 @@ help:
 	@echo "  make run OLD=x NEW=y  Run pipeline (ingest → delta → report)"
 	@echo "  make chat OLD=x NEW=y Interactive CLI chat"
 	@echo "  make eval OLD=x NEW=y GT=z  Run eval harness"
+	@echo "  make sample-image-eval  Run bundled OCR image eval"
 	@echo "  make clean            Remove build artifacts"
 
 install:
@@ -47,6 +48,13 @@ eval:
 		echo "Usage: make eval OLD=path/to/old.pdf NEW=path/to/new.pdf GT=path/to/ground_truth.json"; exit 1; \
 	fi
 	uv run python eval/run_eval.py --old $(OLD) --new $(NEW) --gt-delta $(GT)
+
+sample-image-eval:
+	uv run python eval/run_eval.py \
+		--old data/sample_image/gas_ocr.png \
+		--new data/sample_image/gas_ocr_revision.png \
+		--gt-delta eval/datasets/sample_image_delta_gt.json \
+		--gt-answers eval/datasets/sample_image_qa_gt.json
 
 clean:
 	rm -rf output/ .mypy_cache/ .ruff_cache/ __pycache__ .pytest_cache
