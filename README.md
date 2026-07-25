@@ -47,7 +47,7 @@ make sample-image-eval
 ## Key Design Decisions & Trade-offs
 
 - **Format-Agnostic Canonical Model:** Instead of writing distinct comparison logic for PDFs, Images, and CAD files, all adapters map native data into a uniform `CanonicalDocument` schema. This completely decouples the delta engine and RAG systems from the ingestion layer.
-- **LangChain Integration:** The RAG system leverages the `langchain` framework (`ChatOpenAI`, `OpenAIEmbeddings`) inside the `LLMClient`. This abstraction allows for seamless future extensibility into complex agentic workflows, memory chains, and diverse model backends, while maintaining a clean custom interface.
+- **Native OpenAI over LangChain:** We deliberately chose to write a native RAG implementation (`RetrievalIndex`, `LLMClient`) using the standard OpenAI SDK rather than importing LangChain. LangChain introduces massive, opaque abstractions that hinder debugging and tight iteration. By owning every line of our QA logic, we retain strict deterministic control over our citation enforcement and trace boundaries.
 - **Stable-ID Alignment First:** Elements with tag numbers or line specs match by exact ID. Unmatched elements fall back to fuzzy text similarity (`rapidfuzz`). This hybrid approach maximizes both precision and recall.
 - **Strict Citation Enforcement:** Chat answers must cite `[PID:source:page:element_id]` or `[delta:entry_index]`. The system prompt is engineered to refuse ungrounded answers.
 
